@@ -505,6 +505,7 @@ namespace Orts.Formats.Msts
         public ActivityRestrictedSpeedZones ActivityRestrictedSpeedZones;
         public bool AIBlowsHornAtLevelCrossings { get; private set; } = false;
         public LevelCrossingHornPattern AILevelCrossingHornPattern { get; private set; } = LevelCrossingHornPattern.Single;
+        public int ORTSActClockSpeed = 10; //default clock speed
 
 
         public Tr_Activity_File(STFReader stf) {
@@ -560,6 +561,10 @@ namespace Orts.Formats.Msts
             {
                 if (Enum.TryParse<LevelCrossingHornPattern>(stf.ReadStringBlock(""), ignoreCase: true, out var value))
                     AILevelCrossingHornPattern = value;
+            });
+            yield return new STFReader.TokenProcessor("ortsactclockspeed", () =>
+            {
+                ORTSActClockSpeed = stf.ReadIntBlock(ORTSActClockSpeed);
             });
         }
     }

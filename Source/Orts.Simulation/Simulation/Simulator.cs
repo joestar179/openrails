@@ -78,6 +78,9 @@ namespace Orts.Simulation
         // while Simulator.Update() is running, objects are adjusted to this target time 
         // after Simulator.Update() is complete, the simulator state matches this time
 
+        public float clockmult = 1;
+        // clock multiplier modification for compressed mileage routes. Default is equal to 1 (standard time)
+
         public readonly UserSettings Settings;
 
         public string BasePath;     // ie c:\program files\microsoft games\train simulator
@@ -397,6 +400,7 @@ namespace Orts.Simulation
             StartTime st = Activity.Tr_Activity.Tr_Activity_Header.StartTime;
             TimeSpan StartTime = new TimeSpan(st.Hour, st.Minute, st.Second);
             ClockTime = StartTime.TotalSeconds;
+            clockmult = Activity.Tr_Activity.Tr_Activity_File.ORTSActClockSpeed / 10.0f;
             Season = Activity.Tr_Activity.Tr_Activity_Header.Season;
             WeatherType = Activity.Tr_Activity.Tr_Activity_Header.Weather;
             if (Activity.Tr_Activity.Tr_Activity_File.ActivityRestrictedSpeedZones != null)
@@ -779,7 +783,7 @@ namespace Orts.Simulation
         {
             // Advance the times.
             GameTime += elapsedClockSeconds;
-            ClockTime += elapsedClockSeconds;
+            ClockTime += elapsedClockSeconds * clockmult;
 
             // Check if there is a request to switch to another played train
 

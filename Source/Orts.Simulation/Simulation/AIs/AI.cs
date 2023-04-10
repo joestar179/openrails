@@ -54,6 +54,7 @@ namespace Orts.Simulation.AIs
         public StartTrains StartList = new StartTrains(); // trains yet to be started
         public List<AITrain> AutoGenTrains = new List<AITrain>(); // auto-generated trains
         public double clockTime; // clock time : local time before activity start, common time from simulator after start
+        public float clockmult = 1; // default clock multiplier
         private bool localTime;  // if true : clockTime is local time
         public List<AITrain> TrainsToRemove = new List<AITrain>();
         public List<AITrain> TrainsToAdd = new List<AITrain>();
@@ -340,6 +341,7 @@ namespace Orts.Simulation.AIs
                 // perform update for AI trains upto actual start time
 
                 clockTime = firstAITime - 1.0f;
+                clockmult = Simulator.clockmult;
                 localTime = true;
                 Simulator.PreUpdate = true;
 
@@ -348,7 +350,7 @@ namespace Orts.Simulation.AIs
                     int fullsec = Convert.ToInt32(runTime);
                     if (fullsec % 3600 == 0) Trace.Write(" " + (fullsec / 3600).ToString("00") + ":00 ");
 
-                    AIUpdate((float)(runTime - clockTime), Simulator.PreUpdate);
+                    AIUpdate((float)((runTime - clockTime) / clockmult), Simulator.PreUpdate);
                     Simulator.Signals.Update(true);
                     clockTime = runTime;
                     if (cancellation.IsCancellationRequested) return; // ping watchdog process
@@ -370,6 +372,7 @@ namespace Orts.Simulation.AIs
                 // perform update for AI trains upto actual start time
 
                 clockTime = firstAITime - 1.0f;
+                clockmult = Simulator.clockmult;
                 localTime = true;
                 Simulator.PreUpdate = true;
                 bool activeTrains = false;
@@ -381,7 +384,7 @@ namespace Orts.Simulation.AIs
                     int fullsec = Convert.ToInt32(runTime);
                     if (fullsec % 3600 < 5) Trace.Write(" " + (fullsec / 3600).ToString("00") + ":00 ");
 
-                    endPreRun = AITTUpdate((float)(runTime - clockTime), Simulator.PreUpdate, ref activeTrains);
+                    endPreRun = AITTUpdate((float)((runTime - clockTime)/clockmult), Simulator.PreUpdate, ref activeTrains);
 
                     if (activeTrains)
                     {

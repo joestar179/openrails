@@ -22,7 +22,9 @@ using System.IO;
 using System.Management;
 using System.Runtime.InteropServices;
 using System.Text;
+#pragma warning disable CS0234 // The type or namespace name 'Forms' does not exist in the namespace 'System.Windows' (are you missing an assembly reference?)
 using System.Windows.Forms;
+#pragma warning restore CS0234 // The type or namespace name 'Forms' does not exist in the namespace 'System.Windows' (are you missing an assembly reference?)
 using Microsoft.Xna.Framework.Graphics;
 
 namespace ORTS.Common
