@@ -59,6 +59,7 @@ namespace Orts.Simulation.Timetables
         public static float keepDistanceTrainAheadCloseupM = 0.5f;       // stay 0.5m from train ahead when closeup required (for stabling only)
         public static float keepDistanceCloseupSignalM = 7.0f;          // stay 10m from signal ahead when signalcloseup required
         public static float endOfRouteDistance = 150f;         // Max length to remain for train to continue on route
+        public static int clockmult = 10;
 
         public int? ActivateTime;                           // time train is activated
         public bool TriggeredActivationRequired = false;    // train activation is triggered by other train

@@ -36,6 +36,7 @@ using Orts.Simulation.Signalling;
 using ORTS.Common;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -55,6 +56,7 @@ namespace Orts.Simulation.Timetables
             trainDefinition,
             trainAddInfo,
             invalid,
+            clockmult,
         }
 
         private enum rowType
@@ -73,6 +75,7 @@ namespace Orts.Simulation.Timetables
             comment,
             briefing,
             invalid,
+            clockmult,
         }
 
         Dictionary<string, AIPath> Paths = new Dictionary<string, AIPath>();                                  // original path referenced by path name
@@ -333,6 +336,9 @@ namespace Orts.Simulation.Timetables
             int disposeRow = -1;
             int briefingRow = -1;
 
+            int firstclockmultRow = -1;
+            int firstclockmultColumn = -1;
+
             int firstCommentRow = -1;
             int firstCommentColumn = -1;
 
@@ -369,6 +375,10 @@ namespace Orts.Simulation.Timetables
                             ColInfo[iColumn] = columnType.comment;
                             break;
 
+                        case columnType.clockmult:
+                            ColInfo[iColumn] = columnType.clockmult;
+                            break;
+
                         case columnType.trainDefinition:
                             ColInfo[iColumn] = columnType.trainAddInfo;
                             addTrainInfo.Add(iColumn, iColumn - 1);
@@ -381,11 +391,13 @@ namespace Orts.Simulation.Timetables
                     }
                 }
 
-                // comment
+                // comment & clock multiplier
                 else if (String.Compare(columnDef, "#comment", true) == 0)
                 {
                     ColInfo[iColumn] = columnType.comment;
                     if (firstCommentColumn < 0) firstCommentColumn = iColumn;
+                    ColInfo[iColumn] = columnType.clockmult;
+                    if (firstclockmultColumn < 0) firstclockmultColumn = iColumn;
                 }
 
                 // oheck for invalid command definition
@@ -536,6 +548,20 @@ namespace Orts.Simulation.Timetables
                             briefingRow = iRow;
                             break;
 
+                        case "#clockmult":
+                            RowInfo[iRow] = rowType.clockmult;
+                            if (firstclockmultRow < 0) firstclockmultRow = iRow;
+                            if (firstclockmultRow < 0)
+                            {
+                                Trace.TraceInformation("no clockmult found \n");
+                                TTTrain.clockmult = 10;
+                            }
+                            else
+                            {
+                                Trace.TraceInformation("firstclockmult firstclockcol {0} {1}", firstclockmultRow, firstclockmultColumn);
+                            }
+                            break;
+
                         default:  // default is station definition
                             if (rowDef.Substring(0, 1).Equals("#"))
                             {
@@ -613,6 +639,14 @@ namespace Orts.Simulation.Timetables
 
             string description = (firstCommentRow >= 0 && firstCommentColumn >= 0) ?
                 fileContents.Strings[firstCommentRow][firstCommentColumn] : Path.GetFileNameWithoutExtension(fileContents.FilePath);
+
+            // extract clock multiplier
+
+            string clockmultinfo = (firstclockmultRow >= 0 && firstclockmultColumn >= 0) ?
+                fileContents.Strings[firstclockmultRow][firstclockmultColumn] : Path.GetFileNameWithoutExtension(fileContents.FilePath);
+            Trace.TraceWarning("clock multiplier string: {0}", clockmultinfo);
+            TTTrain.clockmult = Int32.Parse(clockmultinfo);
+            Trace.TraceWarning("clock multiplier integer: {0}", TTTrain.clockmult);
 
             // extract additional station info
 

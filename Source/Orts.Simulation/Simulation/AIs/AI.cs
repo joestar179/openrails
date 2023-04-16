@@ -372,7 +372,7 @@ namespace Orts.Simulation.AIs
                 // perform update for AI trains upto actual start time
 
                 clockTime = firstAITime - 1.0f;
-                clockmult = Simulator.clockmult;
+                clockmult = TTTrain.clockmult / 10;
                 localTime = true;
                 Simulator.PreUpdate = true;
                 bool activeTrains = false;
