@@ -783,10 +783,10 @@ namespace Orts.Simulation
         {
             // Advance the times.
             GameTime += elapsedClockSeconds;
-            if (TimetableMode = true) clockmult = TTTrain.clockmult / 10; 
+            if (TimetableMode == true) clockmult = TTTrain.clockmult / 10.0f; 
             ClockTime += elapsedClockSeconds * clockmult;
-            Trace.TraceWarning("clock multiplier: {0} {1}", clockmult, TTTrain.clockmult);
-
+            //Trace.TraceWarning("clocktime: {0} {1}", GameTime, ClockTime);
+           
             // Check if there is a request to switch to another played train
 
             if (TrainSwitcher.ClickedSelectedAsPlayer && !playerSwitchOngoing)

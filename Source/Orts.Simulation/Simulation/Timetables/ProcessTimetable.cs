@@ -1714,6 +1714,7 @@ namespace Orts.Simulation.Timetables
                 string createAhead = String.Empty;
                 string createInPool = String.Empty;
                 bool startNextNight = false;
+                string daycountstring = String.Empty;
                 string createFromPool = String.Empty;
                 string createPoolDirection = String.Empty;
                 bool setConsistName = false;
@@ -1817,6 +1818,17 @@ namespace Orts.Simulation.Timetables
                             // check for $next : set special flag to start after midnight
                             case "next":
                                 startNextNight = true;
+                                // process day
+                                if (thisCommand.CommandValues != null && thisCommand.CommandValues.Count > 0)
+                                {
+                                    daycountstring = String.Copy(thisCommand.CommandValues[0]);
+                                }
+                                else
+                                // if not set, start at 1 second (same start time as for static so /ahead will work for both create and static)
+                                {
+                                    daycountstring = "1";
+                                }
+                                Trace.TraceInformation("Train : " + TTTrain.Name + " " + daycountstring + "days");                               
                                 break;
 
                             // static : syntax : $static [/ahead = train]
@@ -1889,9 +1901,11 @@ namespace Orts.Simulation.Timetables
                     // trains starting after midnight
                     if (startNextNight && TTTrain.StartTime.HasValue)
                     {
-                        TTTrain.StartTime = TTTrain.StartTime.Value + (24 * 3600);
-                        TTTrain.ActivateTime = TTTrain.ActivateTime.Value + (24 * 3600);
+                        TTTrain.StartTime = TTTrain.StartTime.Value + (Convert.ToInt32(daycountstring) * 24 * 3600);
+                        TTTrain.ActivateTime = TTTrain.ActivateTime.Value + (Convert.ToInt32(daycountstring) * 24 * 3600);
                     }
+
+                    Trace.TraceInformation("Train : " + TTTrain.Name + " " + TTTrain.StartTime + " " + TTTrain.ActivateTime);
 
                     if (created && !String.IsNullOrEmpty(createAhead))
                     {

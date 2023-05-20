@@ -22,11 +22,11 @@
  */
 
 // #define DEBUG_REPORTS
-// #define DEBUG_CHECKTRAIN
+#define DEBUG_CHECKTRAIN
 // #define DEBUG_DEADLOCK
 // #define DEBUG_EXTRAINFO
 // #define DEBUG_TRACEINFO
-// #define DEBUG_TTANALYSIS
+#define DEBUG_TTANALYSIS
 // #define DEBUG_DELAYS
 // DEBUG flag for debug prints
 
@@ -38,6 +38,7 @@ using System.Linq;
 using System.Text;
 using Microsoft.Xna.Framework;
 using Orts.Formats.Msts;
+using Orts.Formats.OR;
 using Orts.Simulation.AIs;
 using Orts.Simulation.Physics;
 using Orts.Simulation.RollingStocks;
@@ -80,6 +81,8 @@ namespace Orts.Simulation.Timetables
         public bool Stable_CallOn = false;                                //used when in timetable mode to show stabled train is allowed to call on
         public bool DriverOnlyOperation = false;                          //used when in timetable mode to indicate driver only operation
         public bool ForceReversal = false;                                //used when in timetable mode to force reversal at diverging point ignoring signals
+        
+        public bool delaytriggered = false;                                //used for initial delay trigger control
 
         public enum FormCommand                                           //enum to indicate type of form sequence
         {
@@ -598,6 +601,8 @@ namespace Orts.Simulation.Timetables
 
             Briefing = inf.ReadString();
 
+            clockmult = inf.ReadInt32();
+
             // reset actions if train is active
             bool activeTrain = true;
 
@@ -906,6 +911,7 @@ namespace Orts.Simulation.Timetables
             outf.Write(DriverOnlyOperation);
             outf.Write(ForceReversal);
             outf.Write(Briefing);
+            outf.Write(clockmult);
         }
 
 
@@ -2895,11 +2901,26 @@ namespace Orts.Simulation.Timetables
         public void UpdateMinimalDelay()
         {
             int presentTime = Convert.ToInt32(Math.Floor(Simulator.ClockTime));
+            presentTime = presentTime % (24 * 3600);
+            float dyndelayspeed = -1.0f;
+            int correctedTime = presentTime;
+            int sixteenHundredHours = (16 * 3600);
+            int eightHundredHours = (8 * 3600);
+            float delaysec = 0.0f;
+
+
+           
+         //   StationStop thisStation = StationStops[0];
+        //    int dist = Convert.ToInt32(thisStation.DistanceToTrainM);
+       //     int timestop = Convert.ToInt32(thisStation.DepartTime);
+
 
             if (TrainType == TRAINTYPE.AI)
             {
                 AITrain thisAI = this as AITrain;
                 presentTime = Convert.ToInt32(Math.Floor(thisAI.AI.clockTime));
+                presentTime = presentTime % (24 * 3600);
+                correctedTime = presentTime;
             }
 
             if (StationStops != null && StationStops.Count > 0 && !AtStation)
@@ -2907,20 +2928,86 @@ namespace Orts.Simulation.Timetables
                 if (presentTime > StationStops[0].ArrivalTime)
                 {
                     TimeSpan tempDelay = TimeSpan.FromSeconds((presentTime - StationStops[0].ArrivalTime) % (24 * 3600));
+                    //Trace.TraceInformation("delay triggered : {0} delaytrigger {1}", tempDelay.ToString(), delaytriggered);
                     //skip when delay exceeds 12 hours - that's due to passing midnight
-                    if (tempDelay.TotalSeconds < (12 * 3600) && (!Delay.HasValue || tempDelay > Delay.Value))
+                    if ((tempDelay.TotalSeconds < (12 * 3600) && (!Delay.HasValue || tempDelay > Delay.Value)))
                     {
                         Delay = tempDelay;
                     }
+                }
+
+                if (StationStops[0].ArrivalTime > sixteenHundredHours && presentTime < eightHundredHours) // should have arrived before midnight
+                {
+                    correctedTime = presentTime + (24 * 3600);
+                }
+
+                if (StationStops[0].ArrivalTime < eightHundredHours && presentTime > sixteenHundredHours) // to depart after midnight
+                {
+                    correctedTime = presentTime - (24 * 3600);
                 }
             }
 
             // update max speed if separate cruise speed is set
             if (SpeedSettings.cruiseSpeedMpS.HasValue)
             {
-                if (SpeedSettings.cruiseMaxDelayS.HasValue && Delay.HasValue && Delay.Value.TotalSeconds > SpeedSettings.cruiseMaxDelayS.Value)
+                if (StationStops != null && StationStops.Count > 0 && !AtStation)
                 {
-                    TrainMaxSpeedMpS = SpeedSettings.maxSpeedMpS.Value;
+                    if (StationStops[0].ArrivalTime > 0)
+                    {
+                        //     if (SpeedSettings.cruiseMaxDelayS.HasValue && Delay.HasValue && Delay.Value.TotalSeconds > SpeedSettings.cruiseMaxDelayS.Value)
+                        //   {
+                        //    delaytriggered = true;                    
+                        //   TrainMaxSpeedMpS = SpeedSettings.maxSpeedMpS.Value;
+                        //     AllowedMaxSpeedMpS = SpeedSettings.maxSpeedMpS.Value;                 // Max speed as allowed
+                        //    allowedMaxSpeedSignalMpS = SpeedSettings.maxSpeedMpS.Value;           // Max speed as set by signal
+                        //    allowedMaxSpeedLimitMpS = SpeedSettings.maxSpeedMpS.Value;            // Max speed as set by limit
+                        //    allowedMaxTempSpeedLimitMpS = SpeedSettings.maxSpeedMpS.Value;        // Max speed as set by temp speed limit
+                        //   allowedAbsoluteMaxSpeedSignalMpS = SpeedSettings.maxSpeedMpS.Value;   // Max speed as set by signal independently from train features
+                        //  allowedAbsoluteMaxSpeedLimitMpS = SpeedSettings.maxSpeedMpS.Value;    // Max speed as set by limit independently from train features
+                        // allowedAbsoluteMaxTempSpeedLimitMpS = SpeedSettings.maxSpeedMpS.Value;
+                        //       Trace.TraceInformation("Delay triggered TrainMaxSpeed {0} : Delay {1} AllowedMaxSpeed {2} AllowedMaxSpeedSignal {3} allowedMaxSpeedLimit {4} allowedAbsoluteMaxSpeedSignal {5} allowedAbsoluteMaxSpeedLimit {6} allowedMaxTempSpeedLimit {7} allowedAbsoluteMaxTempSpeedLimit {8}", TrainMaxSpeedMpS, Delay.Value.TotalSeconds, AllowedMaxSpeedMpS, allowedMaxSpeedSignalMpS, allowedMaxSpeedLimitMpS, allowedAbsoluteMaxSpeedSignalMpS, allowedAbsoluteMaxSpeedLimitMpS, allowedMaxTempSpeedLimitMpS, allowedAbsoluteMaxTempSpeedLimitMpS);
+                        // }
+                        // else
+                        // {
+                        // if (delaytriggered == false)
+                        //  {
+                        //TrainMaxSpeedMpS = SpeedSettings.maxSpeedMpS.Value;
+                        // allowedMaxTempSpeedLimitMpS = SpeedSettings.maxSpeedMpS.Value;
+                        //  allowedAbsoluteMaxTempSpeedLimitMpS = SpeedSettings.maxSpeedMpS.Value;
+                        //    TrainMaxSpeedMpS = SpeedSettings.cruiseSpeedMpS.Value;
+                        //  }
+                        //   else
+                        if (Delay.HasValue)
+                        {
+                            delaysec = Convert.ToInt32(Delay.Value.TotalSeconds);
+                        }
+                        else 
+                        {
+                            delaysec = 0.0f;
+                        }
+
+                        dyndelayspeed = MathHelper.Clamp(clockmult * StationStops[0].DistanceToTrainM / (10 * (StationStops[0].ArrivalTime - correctedTime - delaysec)), 0.0f, 200.0f);
+                        //Trace.TraceInformation("minimal delay dyndelayspeed {0} stationtime {1} correctedtime {2} presenttime {3} delay {4} Name {5}", Convert.ToInt32(dyndelayspeed), StationStops[0].ArrivalTime, correctedTime, presentTime, delaysec, Name);
+
+                        if (dyndelayspeed < 1.0f)
+                        {
+                            dyndelayspeed = SpeedSettings.maxSpeedMpS.Value;
+                        }
+                        dyndelayspeed = MathHelper.Clamp(dyndelayspeed, SpeedSettings.cruiseSpeedMpS.Value, SpeedSettings.maxSpeedMpS.Value);
+                        TrainMaxSpeedMpS = dyndelayspeed;
+                        allowedMaxTempSpeedLimitMpS = dyndelayspeed;
+
+                        //    TrainMaxSpeedMpS = SpeedSettings.cruiseSpeedMpS.Value;
+                        // Trace.TraceInformation("distance to next station {0} cruisespeedmps {1} arrival time {2} elapsed time {3}" );
+                        // if (Delay.HasValue && Delay.Value.TotalSeconds > 1) 
+                         //       Trace.TraceInformation("Delay NOT triggered TrainMaxSpeed {0} : Delay {1} AllowedMaxSpeed {2} AllowedMaxSpeedSignal {3} allowedMaxSpeedLimit {4} allowedAbsoluteMaxSpeedSignal {5} allowedAbsoluteMaxSpeedLimit {6} allowedMaxTempSpeedLimit {7} allowedAbsoluteMaxTempSpeedLimit {8}", TrainMaxSpeedMpS, Delay.Value.TotalSeconds, AllowedMaxSpeedMpS, allowedMaxSpeedSignalMpS, allowedMaxSpeedLimitMpS, allowedAbsoluteMaxSpeedSignalMpS, allowedAbsoluteMaxSpeedLimitMpS, allowedMaxTempSpeedLimitMpS, allowedAbsoluteMaxTempSpeedLimitMpS);
+                        //   else;
+                        //    }
+                    }
+                    else
+                    {
+                        TrainMaxSpeedMpS = SpeedSettings.cruiseSpeedMpS.Value;
+                    }
                 }
                 else
                 {
@@ -3641,6 +3728,7 @@ namespace Orts.Simulation.Timetables
             int eightHundredHours = 8 * 3600;
             int sixteenHundredHours = 16 * 3600;
             int actualdepart = thisStation.ActualDepart;
+            int presentTime2 = presentTime % (24 * 3600); // joe179star
 
             // no arrival / departure time set : update times
 
@@ -3651,7 +3739,7 @@ namespace Orts.Simulation.Timetables
                 if (CheckTrain)
                 {
                     DateTime baseDTCT = new DateTime();
-                    DateTime prsTimeCT = baseDTCT.AddSeconds(presentTime);
+                    DateTime prsTimeCT = baseDTCT.AddSeconds(presentTime2); //joe179star
 
                     if (thisStation.ActualArrival < 0)
                     {
@@ -3674,13 +3762,13 @@ namespace Orts.Simulation.Timetables
 
                 if (thisStation.ActualArrival < 0)
                 {
-                    thisStation.ActualArrival = presentTime;
-                    thisStation.CalculateDepartTime(presentTime, this);
+                    thisStation.ActualArrival = presentTime2;
+                    thisStation.CalculateDepartTime(presentTime2, this);
                     actualdepart = thisStation.ActualDepart;
 
 #if DEBUG_REPORTS
                     DateTime baseDT = new DateTime();
-                    DateTime arrTime = baseDT.AddSeconds(presentTime);
+                    DateTime arrTime = baseDT.AddSeconds(presentTime2);
 
                     File.AppendAllText(@"C:\temp\printproc.txt", "Train " +
                          Number.ToString() + " arrives station " +
@@ -3690,7 +3778,7 @@ namespace Orts.Simulation.Timetables
                     if (CheckTrain)
                     {
                         DateTime baseDTCT = new DateTime();
-                        DateTime arrTimeCT = baseDTCT.AddSeconds(presentTime);
+                        DateTime arrTimeCT = baseDTCT.AddSeconds(presentTime2);
                         DateTime depTimeCT = baseDTCT.AddSeconds(thisStation.ActualDepart);
 
                         File.AppendAllText(@"C:\temp\checktrain.txt", "Train " +
@@ -3700,7 +3788,7 @@ namespace Orts.Simulation.Timetables
                              depTimeCT.ToString("HH:mm:ss") + "\n");
                     }
 #if DEBUG_TTANALYSIS
-                    TTAnalysisUpdateStationState1(presentTime, thisStation);
+                    TTAnalysisUpdateStationState1(presentTime2, thisStation);
 #endif
                 }
 
@@ -3803,16 +3891,21 @@ namespace Orts.Simulation.Timetables
 
             // not yet time to depart - check if signal can be released
 
-            int correctedTime = presentTime;
+            int correctedTime = presentTime2;
+            // int day = presentTime / (24 * 3600); //edit joe179star : to compensate start stop times for days later than 2
+            // presentTime = presentTime % (24 * 3600);
+            // int stationstopscalc = -1; //edit joe179star : to compensate delays for days later than 2
 
-            if (actualdepart > sixteenHundredHours && presentTime < eightHundredHours) // should have departed before midnight
+            if (actualdepart > sixteenHundredHours && presentTime2 < eightHundredHours) // should have departed before midnight
             {
-                correctedTime = presentTime + (24 * 3600);
+                correctedTime = presentTime2 + (24 * 3600); 
+               // correctedTime = presentTime + (day * 24 * 3600); //edit joe179star : to compensate for days later than 2
             }
 
-            if (actualdepart < eightHundredHours && presentTime > sixteenHundredHours) // to depart after midnight
+            if (actualdepart < eightHundredHours && presentTime2 > sixteenHundredHours) // to depart after midnight
             {
-                correctedTime = presentTime - 24 * 3600;
+               correctedTime = presentTime2 - (24 * 3600);
+                // correctedTime = presentTime - (day * 24 * 3600); //edit joe179star : to compensate for days later than 2
             }
 
             if (actualdepart > correctedTime)
@@ -4035,7 +4128,7 @@ namespace Orts.Simulation.Timetables
 
             // check if station is end of path
 
-            bool[] endOfPath = ProcessEndOfPath(presentTime);
+            bool[] endOfPath = ProcessEndOfPath(presentTime2);
 
             // check for exit signal
 
@@ -4082,13 +4175,23 @@ namespace Orts.Simulation.Timetables
 
                 if (thisStation.ActualStopType == StationStop.STOPTYPE.STATION_STOP)
                 {
-                    Delay = TimeSpan.FromSeconds((presentTime - thisStation.DepartTime) % (24 * 3600));
+                    if (presentTime2 < eightHundredHours && StationStops[0].DepartTime > sixteenHundredHours) //assume train arrived after midnight at station stop before midnight
+                    {
+                        Delay = TimeSpan.FromSeconds((presentTime2 + (24 * 3600) - thisStation.DepartTime) % (24 * 3600));
+                    }
+                    if (presentTime2 > sixteenHundredHours && StationStops[0].DepartTime < eightHundredHours) //assume train arrived after midnight at station stop before midnight
+                    {
+                        Delay = TimeSpan.FromSeconds((presentTime2 - (24 * 3600) - thisStation.DepartTime) % (24 * 3600));
+                    }
+                    Delay = TimeSpan.FromSeconds((presentTime2 - thisStation.DepartTime) % (24 * 3600));
+
+                        Trace.TraceInformation("station stop delay stationtime {0} presenttime {1} delay {2} Name {3}", thisStation.DepartTime, presentTime, Delay.Value.TotalSeconds, Name);
+                    
                 }
             }
-
 #if DEBUG_REPORTS
             DateTime baseDTd = new DateTime();
-            DateTime depTime = baseDTd.AddSeconds(presentTime);
+            DateTime depTime = baseDTd.AddSeconds(presentTime2);
 
             if (thisStation.ActualStopType == StationStop.STOPTYPE.STATION_STOP)
             {
@@ -4124,7 +4227,7 @@ namespace Orts.Simulation.Timetables
             if (CheckTrain)
             {
                 DateTime baseDTdCT = new DateTime();
-                DateTime depTimeCT = baseDTdCT.AddSeconds(presentTime);
+                DateTime depTimeCT = baseDTdCT.AddSeconds(presentTime2);
 
                 if (thisStation.ActualStopType == StationStop.STOPTYPE.STATION_STOP)
                 {
@@ -5139,7 +5242,7 @@ namespace Orts.Simulation.Timetables
         /// <\summary>
 
         public override void UpdateFollowingState(float elapsedClockSeconds, int presentTime)
-        {
+        {            
             if (CheckTrain)
             {
                 File.AppendAllText(@"C:\temp\checktrain.txt",
@@ -10394,18 +10497,37 @@ namespace Orts.Simulation.Timetables
 
                 // get time
                 int presentTime = Convert.ToInt32(Math.Floor(Simulator.ClockTime));
+                // int day = presentTime / (24 * 3600); // joe179star to compensate for multiple day runs
+                int presentTime2 = presentTime % (24 * 3600);
+                //Trace.TraceInformation("present time {0} days since {1} ", Convert.ToString(presentTime), Convert.ToString(day));
+                
                 int eightHundredHours = 8 * 3600;
                 int sixteenHundredHours = 16 * 3600;
+              //  int stationstopscalc = -1;
+                
 
                 // if moving, set departed
                 if (Math.Abs(SpeedMpS) > 1.0f)
                 {
-                    StationStops[0].ActualDepart = presentTime;
+                    StationStops[0].ActualDepart = presentTime2;
                     StationStops[0].Passed = true;
                     AtStation = false;
                     MayDepart = false;
                     DisplayMessage = "";
-                    Delay = TimeSpan.FromSeconds((presentTime - StationStops[0].DepartTime) % (24 * 3600));
+
+                    if (presentTime2 < eightHundredHours && StationStops[0].DepartTime > sixteenHundredHours) //assume train arrived after midnight at station stop before midnight
+                    {
+                        Delay = TimeSpan.FromSeconds((presentTime2 + (24 * 3600) - StationStops[0].DepartTime) % (24 * 3600));
+                    }
+                    if (presentTime2 > sixteenHundredHours && StationStops[0].DepartTime < eightHundredHours) //assume train arrived after midnight at station stop before midnight
+                    {
+                        Delay = TimeSpan.FromSeconds((presentTime2 - (24 * 3600) - StationStops[0].DepartTime) % (24 * 3600));
+                    }
+                    Delay = TimeSpan.FromSeconds((presentTime2 - StationStops[0].DepartTime) % (24 * 3600));
+
+                    Trace.TraceInformation("station depart delay stationtime {0} presenttime {1} delay {2} Name {3}", StationStops[0].DepartTime, presentTime2, Delay.Value.TotalSeconds, Name);
+
+
 
                     // check for activation of other train
                     ActivateTriggeredTrain(TriggerActivationType.StationDepart, StationStops[0].PlatformReference);
@@ -10664,13 +10786,17 @@ namespace Orts.Simulation.Timetables
                             StationStops[0].ActualDepart = actualDepart;
                         }
 
-                        int correctedTime = presentTime;
-                        if (presentTime > sixteenHundredHours && StationStops[0].DepartTime < eightHundredHours)
+                        int correctedTime = presentTime2;
+                        if (presentTime2 > sixteenHundredHours && StationStops[0].DepartTime < eightHundredHours)
                         {
-                            correctedTime = presentTime - 24 * 3600;  // correct to time before midnight (negative value!)
+                            correctedTime = presentTime2 - (24 * 3600);  // correct to time before midnight (negative value!)
+                      //      correctedTime = presentTime - (day * 24 * 3600);  // joe179star correct to time before midnight (negative value!)
+                         //   actualDepart += (24 * 3600); // joe179star correct to time after midnight (negative value!)
                         }
-
+                        actualDepart = actualDepart % (24 * 3600);
                         remaining = actualDepart - correctedTime;
+
+                       // Trace.TraceInformation("actualDepart : {0} correctedTime {1} remaining {2} currdelay {3}", Convert.ToString(actualDepart), Convert.ToString(correctedTime), Convert.ToString(remaining), Convert.ToString(Delay));
 
                         // set display text color
                         if (remaining < 1)
@@ -10783,8 +10909,9 @@ namespace Orts.Simulation.Timetables
                             MovementState = AI_MOVEMENT_STATE.STATION_STOP;
 
                             int presentTime = Convert.ToInt32(Math.Floor(Simulator.ClockTime));
-                            StationStops[0].ActualArrival = presentTime;
-                            StationStops[0].CalculateDepartTime(presentTime, this);
+                            int presentTime2 = presentTime % (24 * 3600);
+                            StationStops[0].ActualArrival = presentTime2;
+                            StationStops[0].CalculateDepartTime(presentTime2, this);
 
                             if (StationStops[0].ConnectionsWaiting.Count > 0)
                             {
@@ -12770,11 +12897,14 @@ namespace Orts.Simulation.Timetables
             DateTime arrTimeA = baseDTA.AddSeconds(presentTime);
             DateTime depTimeA = baseDTA.AddSeconds(thisStation.ActualDepart);
 
-            var sob = new StringBuilder();
-            sob.AppendFormat("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};{11};{12}",
-                Number, presentDTA.ToString("HH:mm:ss"), Name, Delay, thisStation.PlatformItem.Name, thisStation.arrivalDT.ToString("HH:mm:ss"), thisStation.departureDT.ToString("HH:mm:ss"),
-                arrTimeA.ToString("HH:mm:ss"), depTimeA.ToString("HH:mm:ss"), "", "", "", "");
-            File.AppendAllText(@"C:\temp\TTAnalysis.csv", sob.ToString() + "\n");
+            if (Delay.HasValue)
+            {
+                var sob = new StringBuilder();
+                sob.AppendFormat("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};{11};{12}",
+                    Number, presentDTA.ToString("HH:mm:ss"), Name, Delay.Value.TotalMinutes, thisStation.PlatformItem.Name, thisStation.arrivalDT.ToString("HH:mm:ss"), thisStation.departureDT.ToString("HH:mm:ss"),
+                    arrTimeA.ToString("HH:mm:ss"), depTimeA.ToString("HH:mm:ss"), "", "", "", "");
+                File.AppendAllText(@"C:\temp\TTAnalysis.csv", sob.ToString() + "\n");
+            }
         }
 
         public void TTAnalysisUpdateStationState2()
@@ -12834,10 +12964,12 @@ namespace Orts.Simulation.Timetables
             if (waitforstring.ToString() != ttanalysisreport)
             {
                 ttanalysisreport = waitforstring.ToString();
-
-                var sob = new StringBuilder();
-                sob.AppendFormat("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};{11};{12}", Number, stopTime.ToString("HH:mm:ss"), Name, Delay, "", "", "", "", "", "", stopTime.ToString("HH:mm:ss"), signalstring.ToString(), waitforstring.ToString());
-                File.AppendAllText(@"C:\temp\TTAnalysis.csv", sob.ToString() + "\n");
+                if (Delay.HasValue)
+                {
+                    var sob = new StringBuilder();
+                    sob.AppendFormat("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};{11};{12}", Number, stopTime.ToString("HH:mm:ss"), Name, Delay.Value.TotalMinutes, "", "", "", "", "", "", stopTime.ToString("HH:mm:ss"), signalstring.ToString(), waitforstring.ToString());
+                    File.AppendAllText(@"C:\temp\TTAnalysis.csv", sob.ToString() + "\n");
+                }
             }
         }
 
@@ -12898,10 +13030,12 @@ namespace Orts.Simulation.Timetables
                 if (waitforstring.ToString() != ttanalysisreport)
                 {
                     ttanalysisreport = waitforstring.ToString();
-
-                    var sob = new StringBuilder();
-                    sob.AppendFormat("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};{11};{12}", Number, stopTime.ToString("HH:mm:ss"), Name, Delay, "", "", "", "", "", "", stopTime.ToString("HH:mm:ss"), signalstring.ToString(), waitforstring.ToString());
-                    File.AppendAllText(@"C:\temp\TTAnalysis.csv", sob.ToString() + "\n");
+                    if (Delay.HasValue)
+                    {
+                        var sob = new StringBuilder();
+                        sob.AppendFormat("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};{11};{12}", Number, stopTime.ToString("HH:mm:ss"), Name, Delay.Value.TotalMinutes, "", "", "", "", "", "", stopTime.ToString("HH:mm:ss"), signalstring.ToString(), waitforstring.ToString());
+                        File.AppendAllText(@"C:\temp\TTAnalysis.csv", sob.ToString() + "\n");
+                    }
                 }
             }
         }
@@ -12969,10 +13103,12 @@ namespace Orts.Simulation.Timetables
             if (waitforstring.ToString() != ttanalysisreport)
             {
                 ttanalysisreport = waitforstring.ToString();
-
-                var sob = new StringBuilder();
-                sob.AppendFormat("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};{11};{12}", Number, stopTime.ToString("HH:mm:ss"), Name, Delay, "", "", "", "", "", "", stopTime.ToString("HH:mm:ss"), signalstring.ToString(), waitforstring.ToString());
-                File.AppendAllText(@"C:\temp\TTAnalysis.csv", sob.ToString() + "\n");
+                if (Delay.HasValue)
+                {
+                    var sob = new StringBuilder();
+                    sob.AppendFormat("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};{11};{12}", Number, stopTime.ToString("HH:mm:ss"), Name, Delay.Value.TotalMinutes, "", "", "", "", "", "", stopTime.ToString("HH:mm:ss"), signalstring.ToString(), waitforstring.ToString());
+                    File.AppendAllText(@"C:\temp\TTAnalysis.csv", sob.ToString() + "\n");
+                }
             }
         }
 
@@ -12980,12 +13116,14 @@ namespace Orts.Simulation.Timetables
         {
             DateTime baseDTA = new DateTime();
             DateTime moveTimeA = baseDTA.AddSeconds(AI.clockTime);
-
-            var sob = new StringBuilder();
-            sob.AppendFormat("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};{11};{12}",
-                Number, moveTimeA.ToString("HH:mm:ss"), Name, Delay, "", "", "", "", "", moveTimeA.ToString("HH:mm:ss"), "", "", info);
-            File.AppendAllText(@"C:\temp\TTAnalysis.csv", sob.ToString() + "\n");
-            ttanalysisreport = String.Empty;
+            if (Delay.HasValue)
+            {
+                var sob = new StringBuilder();
+                sob.AppendFormat("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};{11};{12}",
+                    Number, moveTimeA.ToString("HH:mm:ss"), Name, Delay.Value.TotalMinutes, "", "", "", "", "", moveTimeA.ToString("HH:mm:ss"), "", "", info);
+                File.AppendAllText(@"C:\temp\TTAnalysis.csv", sob.ToString() + "\n");
+                ttanalysisreport = String.Empty;
+            }
         }
     }
 

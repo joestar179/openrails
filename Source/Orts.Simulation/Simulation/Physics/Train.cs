@@ -8934,8 +8934,10 @@ namespace Orts.Simulation.Physics
                             if (PassedSignalSpeeds.ContainsKey(thisObject.thisRef))
                             {
                                 allowedMaxSpeedSignalMpS = PassedSignalSpeeds[thisObject.thisRef];
-                                if (Simulator.TimetableMode) AllowedMaxSpeedMpS = Math.Min(AllowedMaxSpeedMpS, allowedMaxSpeedSignalMpS);
-                                else AllowedMaxSpeedMpS = Math.Min(allowedMaxSpeedLimitMpS, Math.Min(allowedMaxTempSpeedLimitMpS, allowedMaxSpeedSignalMpS));
+                                if (Simulator.TimetableMode) 
+                                AllowedMaxSpeedMpS = Math.Min(AllowedMaxSpeedMpS, allowedMaxSpeedSignalMpS);
+                                else
+                                AllowedMaxSpeedMpS = Math.Min(allowedMaxSpeedLimitMpS, Math.Min(allowedMaxTempSpeedLimitMpS, allowedMaxSpeedSignalMpS));
 
                                 if (!remainingSignals.ContainsKey(thisObject.thisRef))
                                     remainingSignals.Add(thisObject.thisRef, allowedMaxSpeedSignalMpS);
@@ -13777,7 +13779,8 @@ namespace Orts.Simulation.Physics
             iColumn++;
 
             //  1, "Travelled"
-            statusString[iColumn] = FormatStrings.FormatDistanceDisplay(DistanceTravelledM, metric);
+            //statusString[iColumn] = FormatStrings.FormatDistanceDisplay(DistanceTravelledM, metric);
+            statusString[iColumn] = String.Concat("N +", Convert.ToInt32(Math.Floor(Simulator.ClockTime)).ToString("00"));
             iColumn++;
             //  2, "Speed"
             var trainSpeed = TrainType == Train.TRAINTYPE.REMOTE && SpeedMpS != 0 ? targetSpeedMpS : SpeedMpS;
@@ -20864,18 +20867,19 @@ namespace Orts.Simulation.Physics
             {
                 int eightHundredHours = 8 * 3600;
                 int sixteenHundredHours = 16 * 3600;
+                int ActualArrivalCalc = ActualArrival % (24 * 3600);
 
                 // preset depart to booked time
                 ActualDepart = DepartTime;
 
                 // correct arrival for stop around midnight
-                if (ActualArrival < eightHundredHours && ArrivalTime > sixteenHundredHours) // arrived after midnight, expected to arrive before
+                if (ActualArrivalCalc < eightHundredHours && ArrivalTime > sixteenHundredHours) // arrived after midnight, expected to arrive before
                 {
-                    ActualArrival += (24 * 3600);
+                    ActualArrivalCalc += (24 * 3600);
                 }
-                else if (ActualArrival > sixteenHundredHours && ArrivalTime < eightHundredHours) // arrived before midnight, expected to arrive before
+                else if (ActualArrivalCalc > sixteenHundredHours && ArrivalTime < eightHundredHours) // arrived before midnight, expected to arrive before
                 {
-                    ActualArrival -= (24 * 3600);
+                    ActualArrivalCalc -= (24 * 3600);
                 }
 
                 // correct stop time for stop around midnight
@@ -20889,7 +20893,7 @@ namespace Orts.Simulation.Physics
                 var validSched = stoppedTrain.ComputeTrainBoardingTime(this, ref stopTime);
 
                 // correct departure time for stop around midnight
-                int correctedTime = ActualArrival + stopTime;
+                int correctedTime = ActualArrivalCalc + stopTime;
                 if (validSched)
                 {
                     ActualDepart = CompareTimes.LatestTime(DepartTime, correctedTime);

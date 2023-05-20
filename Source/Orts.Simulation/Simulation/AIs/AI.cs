@@ -372,11 +372,11 @@ namespace Orts.Simulation.AIs
                 // perform update for AI trains upto actual start time
 
                 clockTime = firstAITime - 1.0f;
-                clockmult = TTTrain.clockmult / 10;
+                clockmult = TTTrain.clockmult / 10.0f;
                 localTime = true;
                 Simulator.PreUpdate = true;
                 bool activeTrains = false;
-                for (double runTime = firstAITime; runTime < Simulator.ClockTime && !endPreRun; runTime += 5.0) // update with 5 secs interval
+                for (double runTime = firstAITime; runTime < Simulator.ClockTime && !endPreRun; runTime += 30.0) // joe179star update with 30 secs interval - default 5
                 {
                     var loaderSpan = (float)TimetableInfo.PlayerTrainOriginalStartTime - firstAITime;
                     Simulator.TimetableLoadedFraction = ((float)runTime - firstAITime) / loaderSpan;
@@ -384,7 +384,9 @@ namespace Orts.Simulation.AIs
                     int fullsec = Convert.ToInt32(runTime);
                     if (fullsec % 3600 < 5) Trace.Write(" " + (fullsec / 3600).ToString("00") + ":00 ");
 
-                    endPreRun = AITTUpdate((float)((runTime - clockTime)/clockmult), Simulator.PreUpdate, ref activeTrains);
+                    endPreRun = AITTUpdate((float)((runTime - clockTime) / clockmult), Simulator.PreUpdate, ref activeTrains);
+                    
+                    //Trace.TraceInformation("clocktime {0} clockmult {1}", clockTime, clockmult);
 
                     if (activeTrains)
                     {
@@ -547,7 +549,7 @@ namespace Orts.Simulation.AIs
 
                     while (!playerTrainStarted)
                     {
-                        endPreRun = AITTUpdate((float)(runTime - clockTime), Simulator.PreUpdate, ref dummy);
+                        endPreRun = AITTUpdate((float)((runTime - clockTime) / clockmult), Simulator.PreUpdate, ref dummy);
                         Simulator.Signals.Update(true);
                         clockTime = runTime;
                         runTime += deltaTime;
