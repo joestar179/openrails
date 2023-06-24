@@ -2981,18 +2981,24 @@ namespace Orts.Simulation.Timetables
                         {
                             delaysec = Convert.ToInt32(Delay.Value.TotalSeconds);
                         }
-                        else 
+                        else
                         {
                             delaysec = 0.0f;
                         }
-
+                        if (StationStops[0].DistanceToTrainM < 250.0)
+                        {
+                            dyndelayspeed = (SpeedSettings.maxSpeedMpS.Value + SpeedSettings.cruiseSpeedMpS.Value) / 2.0f;
+                        }
+                        else
+                        { 
                         dyndelayspeed = MathHelper.Clamp(clockmult * StationStops[0].DistanceToTrainM / (10 * (StationStops[0].ArrivalTime - correctedTime - delaysec)), 0.0f, 200.0f);
-                        //Trace.TraceInformation("minimal delay dyndelayspeed {0} stationtime {1} correctedtime {2} presenttime {3} delay {4} Name {5}", Convert.ToInt32(dyndelayspeed), StationStops[0].ArrivalTime, correctedTime, presentTime, delaysec, Name);
-
-                        if (dyndelayspeed < 1.0f)
+                        }
+                    //Trace.TraceInformation("minimal delay dyndelayspeed {0} stationtime {1} stationdist {2} correctedtime {3} presenttime {4} delay {5} Name {6}", Convert.ToInt32(dyndelayspeed), StationStops[0].ArrivalTime, StationStops[0].DistanceToTrainM, correctedTime, presentTime, delaysec, Name);
+                    if (dyndelayspeed < 1.0f)
                         {
                             dyndelayspeed = SpeedSettings.maxSpeedMpS.Value;
                         }
+                        
                         dyndelayspeed = MathHelper.Clamp(dyndelayspeed, SpeedSettings.cruiseSpeedMpS.Value, SpeedSettings.maxSpeedMpS.Value);
                         TrainMaxSpeedMpS = dyndelayspeed;
                         allowedMaxTempSpeedLimitMpS = dyndelayspeed;
@@ -4175,17 +4181,23 @@ namespace Orts.Simulation.Timetables
 
                 if (thisStation.ActualStopType == StationStop.STOPTYPE.STATION_STOP)
                 {
+                   // int delaystate = 0;
                     if (presentTime2 < eightHundredHours && StationStops[0].DepartTime > sixteenHundredHours) //assume train arrived after midnight at station stop before midnight
                     {
+                    //    delaystate = 1;
                         Delay = TimeSpan.FromSeconds((presentTime2 + (24 * 3600) - thisStation.DepartTime) % (24 * 3600));
                     }
-                    if (presentTime2 > sixteenHundredHours && StationStops[0].DepartTime < eightHundredHours) //assume train arrived after midnight at station stop before midnight
+                    else if (presentTime2 > sixteenHundredHours && StationStops[0].DepartTime < eightHundredHours) //assume train arrived after midnight at station stop before midnight
                     {
+                   //     delaystate = 2;
                         Delay = TimeSpan.FromSeconds((presentTime2 - (24 * 3600) - thisStation.DepartTime) % (24 * 3600));
                     }
-                    Delay = TimeSpan.FromSeconds((presentTime2 - thisStation.DepartTime) % (24 * 3600));
-
-                        Trace.TraceInformation("station stop delay stationtime {0} presenttime {1} delay {2} Name {3}", thisStation.DepartTime, presentTime, Delay.Value.TotalSeconds, Name);
+                    else
+                    {
+                   //     delaystate = 3;
+                        Delay = TimeSpan.FromSeconds((presentTime2 - thisStation.DepartTime) % (24 * 3600));
+                    }
+                   //     Trace.TraceInformation("station stop delay stationtime {0} presenttime {1} delay {2} Name {3} delaystate {4}", thisStation.DepartTime, presentTime2, Delay.Value.TotalSeconds, Name, delaystate);
                     
                 }
             }
@@ -10515,17 +10527,23 @@ namespace Orts.Simulation.Timetables
                     MayDepart = false;
                     DisplayMessage = "";
 
+                   // int delaystate = 0;
                     if (presentTime2 < eightHundredHours && StationStops[0].DepartTime > sixteenHundredHours) //assume train arrived after midnight at station stop before midnight
                     {
+                   //     delaystate = 1;
                         Delay = TimeSpan.FromSeconds((presentTime2 + (24 * 3600) - StationStops[0].DepartTime) % (24 * 3600));
                     }
-                    if (presentTime2 > sixteenHundredHours && StationStops[0].DepartTime < eightHundredHours) //assume train arrived after midnight at station stop before midnight
+                    else if (presentTime2 > sixteenHundredHours && StationStops[0].DepartTime < eightHundredHours) //assume train arrived after midnight at station stop before midnight
                     {
+                   //     delaystate = 2;
                         Delay = TimeSpan.FromSeconds((presentTime2 - (24 * 3600) - StationStops[0].DepartTime) % (24 * 3600));
                     }
-                    Delay = TimeSpan.FromSeconds((presentTime2 - StationStops[0].DepartTime) % (24 * 3600));
-
-                    Trace.TraceInformation("station depart delay stationtime {0} presenttime {1} delay {2} Name {3}", StationStops[0].DepartTime, presentTime2, Delay.Value.TotalSeconds, Name);
+                    else
+                    {
+                    //    delaystate = 3;
+                        Delay = TimeSpan.FromSeconds((presentTime2 - StationStops[0].DepartTime) % (24 * 3600));
+                    }
+                   // Trace.TraceInformation("station depart delay stationtime {0} presenttime {1} delay {2} Name {3} Delaystate {4}", StationStops[0].DepartTime, presentTime2, Delay.Value.TotalSeconds, Name, delaystate);
 
 
 
@@ -10666,6 +10684,7 @@ namespace Orts.Simulation.Timetables
                         }
                         DisplayColor = Color.Orange;
                         remaining = 999;
+                        Trace.TraceInformation("waitattach {0}", waitAttach);
                     }
                     else if (waitTransfer >= 0)
                     {

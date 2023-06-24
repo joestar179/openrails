@@ -13785,8 +13785,7 @@ namespace Orts.Simulation.Physics
             iColumn++;
 
             //  1, "Travelled"
-            //statusString[iColumn] = FormatStrings.FormatDistanceDisplay(DistanceTravelledM, metric);
-            statusString[iColumn] = String.Concat("N +", Convert.ToInt32(Math.Floor(Simulator.ClockTime)).ToString("00"));
+            statusString[iColumn] = FormatStrings.FormatDistanceDisplay(DistanceTravelledM, metric);
             iColumn++;
             //  2, "Speed"
             var trainSpeed = TrainType == Train.TRAINTYPE.REMOTE && SpeedMpS != 0 ? targetSpeedMpS : SpeedMpS;
