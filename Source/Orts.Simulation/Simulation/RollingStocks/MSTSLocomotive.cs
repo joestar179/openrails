@@ -5432,6 +5432,7 @@ namespace Orts.Simulation.RollingStocks
                                 break;
 
                             case CABViewControlUnits.LITRES_S:
+                            case CABViewControlUnits.LITERS_S:
                                 data = this.FilteredBrakePipeFlowM3pS * 1000.0f;
                                 break;
 
@@ -5565,7 +5566,6 @@ namespace Orts.Simulation.RollingStocks
 
                                 }
                             }
-
                         }
                         else
                         {
