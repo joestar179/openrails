@@ -2,6 +2,8 @@
 
 Open Rails is a free train simulator supporting the world's largest range of digital content.
 
+This branch has some changes to time acceleration and timetable mode.
+
 ## Getting started
 
 * [Download the Stable Version](http://www.openrails.org/download/program/?utm_campaign=documentation&utm_source=readme&utm_medium=referral)
