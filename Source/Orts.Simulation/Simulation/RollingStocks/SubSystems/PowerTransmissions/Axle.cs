@@ -613,6 +613,8 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
         /// </summary>
         public float SlipWarningTresholdPercent { set; get; }
 
+        public List<string> AnimatedParts = new List<string>();
+
         /// <summary>
         /// Nonparametric constructor of Axle class instance
         /// - sets motor parameter to null
@@ -630,7 +632,6 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
         }
         public void Initialize()
         {
-            AxleSpeedMpS = 0;
             motor?.Initialize();
         }
         public void InitializeMoving()
@@ -654,6 +655,12 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
                     case "weight":
                         AxleWeightN = 9.81f * stf.ReadFloatBlock(STFReader.UNITS.Mass, null);
                         break;
+                    case "animatedparts":
+                        foreach (var part in stf.ReadStringBlock("").ToUpper().Replace(" ", "").Split(','))
+                        {
+                            if (part != "") AnimatedParts.Add(part);
+                        }
+                        break;
                     case "(":
                         stf.SkipRestOfBlock();
                         break;
@@ -665,6 +672,8 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
             WheelRadiusM = other.WheelRadiusM;
             InertiaKgm2 = other.InertiaKgm2;
             AxleWeightN = other.AxleWeightN;
+            AnimatedParts.Clear();
+            AnimatedParts.AddRange(other.AnimatedParts);
         }
 
         /// <summary>
@@ -677,6 +686,8 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
             previousSlipSpeedMpS = inf.ReadSingle();
             AxleForceN = inf.ReadSingle();
             AxleSpeedMpS = inf.ReadSingle();
+            NumOfSubstepsPS = inf.ReadInt32();
+            integratorError = inf.ReadSingle();
         }
 
         /// <summary>
@@ -689,6 +700,8 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
             outf.Write(previousSlipSpeedMpS);
             outf.Write(AxleForceN);
             outf.Write(AxleSpeedMpS);
+            outf.Write(NumOfSubstepsPS);
+            outf.Write(integratorError);
         }
 
         /// <summary>

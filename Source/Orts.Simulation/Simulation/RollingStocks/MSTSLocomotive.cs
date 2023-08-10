@@ -1813,7 +1813,7 @@ public List<CabView> CabViewList = new List<CabView>();
                 && ThrottlePercent == 0 && !(DynamicBrakeController != null && DynamicBrakeBlendingOverride && DynamicBrakeController.CurrentValue > 0))
             {
                 float maxCylPressurePSI = airPipeSystem.GetMaxCylPressurePSI();
-                float target = airPipeSystem.AutoCylPressurePSI / maxCylPressurePSI;
+                float target = airPipeSystem.AutoCylPressurePSI * airPipeSystem.RelayValveRatio / maxCylPressurePSI;
 
                 if (!DynamicBrakeBlended)
                 {
@@ -3120,7 +3120,7 @@ public List<CabView> CabViewList = new List<CabView>();
                 Train.SlipperySpotLengthM = 10 + 40 * (float)Simulator.Random.NextDouble();
                 Train.SlipperySpotDistanceM = Train.SlipperySpotLengthM + 2000 * (float)Simulator.Random.NextDouble();
             }
-            if (Train.SlipperySpotDistanceM < Train.SlipperySpotLengthM)
+            if (Train.SlipperySpotDistanceM < Train.SlipperySpotLengthM && Simulator.Settings.AdhesionFactorChange > 0)
             {
                 if (BaseFrictionCoefficientFactor > 0.6 && BaseFrictionCoefficientFactor < 0.8)
                 {
