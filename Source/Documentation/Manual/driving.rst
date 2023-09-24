@@ -537,12 +537,15 @@ By clicking in this menu it is possible:
   for both electric and diesel locomotives;
 - to connect or disconnect locomotive operation with that of the player 
   locomotive;
-- to connect or disconnect the car's air hoses from the rest of the consist;
-- to toggle the angle cocks on the air hoses at either end of the car 
-  between open and closed;
-- to toggle the bleed valve on the car to vent the air pressure from the 
+- enable or disable the battery switch;
+- to connect or disconnect the Electric Train Supply;
+- to connect or disconnect the car's brake hoses from the rest of the consist;
+- to open or close the angle cocks on the air hoses at either end of the car;
+- to open or close the bleed valve on the car to vent the air pressure from the 
   car's reservoir and release the air brakes to move the car without brakes 
   (e.g. humping, etc.).
+
+Grayed out choices are not applicable for the chosen car.
 
 By toggling the angle cocks on individual cars it is possible to close 
 selected angle cocks of the air hoses so that when the cars are uncoupled, 
@@ -1088,10 +1091,24 @@ More information on connecting brakes and manipulating the brake hose
 connections can be found :ref:`here <physics-hud-brake>` and 
 :ref:`here <driving-car-operations>`.
 
-Doors and Mirror Commands
--------------------------
+Doors, Mirror and Windows Commands
+----------------------------------
+.. _driving-anim-commands:
 
-Note that the standard keys in OR for these commands are different from 
+Note that these commands are active only if the trainset is equipped with 
+the related animations.
+
+===================     =====================================
+Command                 Function
+===================     =====================================
+``<Q>``                 Door left open/close   
+``<Shift+Q>``           Door right open/close
+``<Shift+V>``           Mirror rotate clock/counterclockwise
+``<Ctrl+Q>``            Window left open/close
+``<Ctrl+Shift+Q>``      Window right open/close
+===================     =====================================
+
+Note that the standard keys for doors and mirror in OR are different from 
 those of MSTS.
 
 Wheelslip Reset

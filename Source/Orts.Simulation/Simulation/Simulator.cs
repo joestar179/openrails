@@ -703,6 +703,8 @@ namespace Orts.Simulation
             ToggleDoorsLeftCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
             ToggleDoorsRightCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
             ToggleMirrorsCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
+            ToggleWindowLeftCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
+            ToggleWindowRightCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
             CabRadioCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
             ToggleHelpersEngineCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
             BatterySwitchCommand.Receiver = (PlayerLocomotive as MSTSLocomotive).LocomotivePowerSupply;
@@ -733,6 +735,12 @@ namespace Orts.Simulation
             EOTEmergencyBrakeCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
             ToggleEOTEmergencyBrakeCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
             EOTMountCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
+        }
+
+        public void SetWagonCommandReceivers(MSTSWagon wag)
+        {
+            ToggleWindowLeftCommand.Receiver = wag;
+            ToggleWindowRightCommand.Receiver = wag;
         }
 
         public TrainCar SetPlayerLocomotive(Train playerTrain)

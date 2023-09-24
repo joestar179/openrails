@@ -332,6 +332,7 @@ namespace ORTS.Settings
             Commands[(int)UserCommand.CameraScrollLeft] = new UserCommandModifiableKeyInput(0x4B, KeyModifiers.Alt);
             Commands[(int)UserCommand.CameraScrollRight] = new UserCommandModifiableKeyInput(0x4D, KeyModifiers.Alt);
             Commands[(int)UserCommand.CameraChangePassengerViewPoint] = new UserCommandKeyInput(0x06, KeyModifiers.Shift);
+            Commands[(int)UserCommand.CameraChange3DCabViewPoint] = new UserCommandKeyInput(0x02, KeyModifiers.Control | KeyModifiers.Shift);
             Commands[(int)UserCommand.CameraToggleLetterboxCab] = new UserCommandKeyInput(0x02, KeyModifiers.Control);
             Commands[(int)UserCommand.CameraToggleShowCab] = new UserCommandKeyInput(0x02, KeyModifiers.Shift);
             Commands[(int)UserCommand.CameraTrackside] = new UserCommandKeyInput(0x05);
@@ -374,6 +375,8 @@ namespace ORTS.Settings
             Commands[(int)UserCommand.ControlDieselPlayer] = new UserCommandKeyInput(0x15, KeyModifiers.Shift);
             Commands[(int)UserCommand.ControlDoorLeft] = new UserCommandKeyInput(0x10);
             Commands[(int)UserCommand.ControlDoorRight] = new UserCommandKeyInput(0x10, KeyModifiers.Shift);
+            Commands[(int)UserCommand.ControlWindowLeft] = new UserCommandKeyInput(0x10, KeyModifiers.Control);
+            Commands[(int)UserCommand.ControlWindowRight] = new UserCommandKeyInput(0x10, KeyModifiers.Control | KeyModifiers.Shift);
             Commands[(int)UserCommand.ControlDynamicBrakeDecrease] = new UserCommandKeyInput(0x33);
             Commands[(int)UserCommand.ControlDynamicBrakeIncrease] = new UserCommandKeyInput(0x34);
             Commands[(int)UserCommand.ControlElectricTrainSupply] = new UserCommandKeyInput(0x30, KeyModifiers.Alt);
@@ -512,6 +515,7 @@ namespace ORTS.Settings
             Commands[(int)UserCommand.GameChangeCab] = new UserCommandKeyInput(0x12, KeyModifiers.Control);
             Commands[(int)UserCommand.GameClearSignalBackward] = new UserCommandKeyInput(0x0F, KeyModifiers.Shift);
             Commands[(int)UserCommand.GameClearSignalForward] = new UserCommandKeyInput(0x0F);
+            Commands[(int)UserCommand.GameExternalCabController] = new UserCommandKeyInput(0x29);
             Commands[(int)UserCommand.GameFullscreen] = new UserCommandKeyInput(0x1C, KeyModifiers.Alt);
             Commands[(int)UserCommand.GameMultiPlayerDispatcher] = new UserCommandKeyInput(0x0A, KeyModifiers.Control);
             Commands[(int)UserCommand.GameMultiPlayerTexting] = new UserCommandKeyInput(0x14, KeyModifiers.Alt);
