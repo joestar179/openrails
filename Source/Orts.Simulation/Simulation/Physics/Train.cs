@@ -20884,6 +20884,7 @@ namespace Orts.Simulation.Physics
             {
                 int eightHundredHours = 8 * 3600;
                 int sixteenHundredHours = 16 * 3600;
+                int ActualArrivalCalc = ActualArrival % (24 * 3600); //joe179star
 
                 int stopTime = 0;
 
@@ -20903,13 +20904,13 @@ namespace Orts.Simulation.Physics
                 ActualDepart = DepartTime;
 
                 // correct arrival for stop around midnight
-                if (ActualArrival < eightHundredHours && ArrivalTime > sixteenHundredHours) // arrived after midnight, expected to arrive before
+                if (ActualArrivalCalc < eightHundredHours && ArrivalTime > sixteenHundredHours) // arrived after midnight, expected to arrive before
                 {
-                    ActualArrival += (24 * 3600);
+                    ActualArrivalCalc += (24 * 3600);
                 }
-                else if (ActualArrival > sixteenHundredHours && ArrivalTime < eightHundredHours) // arrived before midnight, expected to arrive before
+                else if (ActualArrivalCalc > sixteenHundredHours && ArrivalTime < eightHundredHours) // arrived before midnight, expected to arrive before
                 {
-                    ActualArrival -= (24 * 3600);
+                    ActualArrivalCalc -= (24 * 3600);
                 }
 
                 // correct stop time for stop around midnight
@@ -20924,7 +20925,7 @@ namespace Orts.Simulation.Physics
                 var validSched = stoppedTrain.ComputeTrainBoardingTime(this, ref stopTime);
 
                 // correct departure time for stop around midnight
-                int correctedTime = ActualArrival + stopTime;
+                int correctedTime = ActualArrivalCalc + stopTime;
                 if (validSched)
                 {
                     ActualDepart = CompareTimes.LatestTime(DepartTime, correctedTime);

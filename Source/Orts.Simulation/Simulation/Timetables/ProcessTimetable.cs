@@ -53,6 +53,7 @@ namespace Orts.Simulation.Timetables
             trainDefinition,
             trainAddInfo,
             invalid,
+            clockmult,
         }
 
         private enum rowType
@@ -71,6 +72,7 @@ namespace Orts.Simulation.Timetables
             comment,
             briefing,
             invalid,
+            clockmult,
         }
 
         Dictionary<string, AIPath> Paths = new Dictionary<string, AIPath>();             // Original path referenced by path name
@@ -330,6 +332,9 @@ namespace Orts.Simulation.Timetables
             int disposeRow = -1;
             int briefingRow = -1;
 
+            int firstclockmultRow = -1; //joe179star
+            int firstclockmultColumn = -1; //joe179star
+
             int firstCommentRow = -1;
             int firstCommentColumn = -1;
 
@@ -365,6 +370,10 @@ namespace Orts.Simulation.Timetables
                             ColInfo[iColumn] = columnType.comment;
                             break;
 
+                        case columnType.clockmult: //joe179star
+                            ColInfo[iColumn] = columnType.clockmult;
+                            break;
+
                         case columnType.trainDefinition:
                             ColInfo[iColumn] = columnType.trainAddInfo;
                             addTrainInfo.Add(iColumn, iColumn - 1);
@@ -378,9 +387,11 @@ namespace Orts.Simulation.Timetables
                 }
                 else if (String.Compare(columnDef, "#comment", true) == 0)
                 {
-                    // Comment
+                    // Comment & clockmult joe179star
                     ColInfo[iColumn] = columnType.comment;
                     if (firstCommentColumn < 0) firstCommentColumn = iColumn;
+                    ColInfo[iColumn] = columnType.clockmult;
+                    if (firstclockmultColumn < 0) firstclockmultColumn = iColumn;
                 }
 
                 else if (columnDef.Substring(0, 1).Equals("#"))
@@ -528,6 +539,20 @@ namespace Orts.Simulation.Timetables
                             briefingRow = iRow;
                             break;
 
+                        case "#clockmult": //joe179star
+                            RowInfo[iRow] = rowType.clockmult;
+                            if (firstclockmultRow < 0) firstclockmultRow = iRow;
+                            if (firstclockmultRow < 0)
+                            {
+                                Trace.TraceInformation("no clockmult found \n");
+                                TTTrain.clockmult = 10;
+                            }
+                            else
+                            {
+                                Trace.TraceInformation("firstclockmult firstclockcol {0} {1}", firstclockmultRow, firstclockmultColumn);
+                            }
+                            break;
+
                         default:  // default is station definition
                             if (rowDef.Substring(0, 1).Equals("#"))
                             {
@@ -604,6 +629,14 @@ namespace Orts.Simulation.Timetables
             // Extract description
             string description = (firstCommentRow >= 0 && firstCommentColumn >= 0) ?
                 fileContents.Strings[firstCommentRow][firstCommentColumn] : Path.GetFileNameWithoutExtension(fileContents.FilePath);
+
+            // extract clock multiplier joe179star
+
+            string clockmultinfo = (firstclockmultRow >= 0 && firstclockmultColumn >= 0) ?
+                fileContents.Strings[firstclockmultRow][firstclockmultColumn] : Path.GetFileNameWithoutExtension(fileContents.FilePath);
+            Trace.TraceWarning("clock multiplier string: {0}", clockmultinfo);
+            TTTrain.clockmult = Int32.Parse(clockmultinfo);
+            Trace.TraceWarning("clock multiplier integer: {0}", TTTrain.clockmult);
 
             // Extract additional station info
             for (int iRow = 1; iRow <= fileContents.Strings.Count - 1; iRow++)
@@ -1669,6 +1702,7 @@ namespace Orts.Simulation.Timetables
                 string createAhead = String.Empty;
                 string createInPool = String.Empty;
                 bool startNextNight = false;
+                string daycountstring = String.Empty; //joe179star
                 string createFromPool = String.Empty;
                 string createPoolDirection = String.Empty;
                 bool setConsistName = false;
@@ -1765,6 +1799,17 @@ namespace Orts.Simulation.Timetables
                             // Check for $next: set special flag to start after midnight
                             case "next":
                                 startNextNight = true;
+                                // process day joe179star
+                                if (thisCommand.CommandValues != null && thisCommand.CommandValues.Count > 0)
+                                {
+                                    daycountstring = String.Copy(thisCommand.CommandValues[0]);
+                                }
+                                else
+                                // if not set, start at 1 second (same start time as for static so /ahead will work for both create and static)
+                                {
+                                    daycountstring = "1";
+                                }
+                                Trace.TraceInformation("Train : " + TTTrain.Name + " " + daycountstring + "days");
                                 break;
 
                             // Static: syntax: $static [/ahead = train]
@@ -1837,9 +1882,11 @@ namespace Orts.Simulation.Timetables
                     // Trains starting after midnight
                     if (startNextNight && TTTrain.StartTime.HasValue)
                     {
-                        TTTrain.StartTime = TTTrain.StartTime.Value + (24 * 3600);
-                        TTTrain.ActivateTime = TTTrain.ActivateTime.Value + (24 * 3600);
+                        TTTrain.StartTime = TTTrain.StartTime.Value + (Convert.ToInt32(daycountstring) * 24 * 3600); //joe179star
+                        TTTrain.ActivateTime = TTTrain.ActivateTime.Value + (Convert.ToInt32(daycountstring) * 24 * 3600);
                     }
+
+                    Trace.TraceInformation("Train : " + TTTrain.Name + " " + TTTrain.StartTime + " " + TTTrain.ActivateTime);
 
                     if (created && !String.IsNullOrEmpty(createAhead))
                     {

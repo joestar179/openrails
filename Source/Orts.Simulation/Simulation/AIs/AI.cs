@@ -51,6 +51,7 @@ namespace Orts.Simulation.AIs
         public StartTrains StartList = new StartTrains(); // Trains yet to be started
         public List<AITrain> AutoGenTrains = new List<AITrain>(); // Auto-generated trains
         public double clockTime; // Clock time: local time before activity start, common time from simulator after start
+        public float clockmult = 1; // default clock multiplier joe179star
         private bool localTime;  // If true: clockTime is local time
         public List<AITrain> TrainsToRemove = new List<AITrain>();
         public List<AITrain> TrainsToAdd = new List<AITrain>();
@@ -329,6 +330,7 @@ namespace Orts.Simulation.AIs
 
                 // Perform update for AI trains upto actual start time
                 clockTime = firstAITime - 1.0f;
+                clockmult = Simulator.clockmult; //joe179star
                 localTime = true;
                 Simulator.PreUpdate = true;
 
@@ -337,7 +339,7 @@ namespace Orts.Simulation.AIs
                     int fullsec = Convert.ToInt32(runTime);
                     if (fullsec % 3600 == 0) Trace.Write(" " + (fullsec / 3600).ToString("00") + ":00 ");
 
-                    AIUpdate((float)(runTime - clockTime), Simulator.PreUpdate);
+                    AIUpdate((float)((runTime - clockTime) / clockmult), Simulator.PreUpdate); //joe179star
                     Simulator.Signals.Update(true);
                     clockTime = runTime;
                     if (cancellation.IsCancellationRequested) return; // Ping watchdog process
@@ -357,10 +359,11 @@ namespace Orts.Simulation.AIs
 
                 // Perform update for AI trains upto actual start time
                 clockTime = firstAITime - 1.0f;
+                clockmult = TTTrain.clockmult / 10.0f; //joe179star
                 localTime = true;
                 Simulator.PreUpdate = true;
                 bool activeTrains = false;
-                for (double runTime = firstAITime; runTime < Simulator.ClockTime && !endPreRun; runTime += 5.0) // Update with 5 secs interval
+                for (double runTime = firstAITime; runTime < Simulator.ClockTime && !endPreRun; runTime += 30.0) // joe179star update with 30 secs interval - default 5
                 {
                     var loaderSpan = (float)TimetableInfo.PlayerTrainOriginalStartTime - firstAITime;
                     Simulator.TimetableLoadedFraction = ((float)runTime - firstAITime) / loaderSpan;
@@ -368,7 +371,7 @@ namespace Orts.Simulation.AIs
                     int fullsec = Convert.ToInt32(runTime);
                     if (fullsec % 3600 < 5) Trace.Write(" " + (fullsec / 3600).ToString("00") + ":00 ");
 
-                    endPreRun = AITTUpdate((float)(runTime - clockTime), Simulator.PreUpdate, ref activeTrains);
+                    endPreRun = AITTUpdate((float)((runTime - clockTime) / clockmult), Simulator.PreUpdate, ref activeTrains); //joe179star
 
                     if (activeTrains)
                     {
@@ -530,7 +533,7 @@ namespace Orts.Simulation.AIs
 
                     while (!playerTrainStarted)
                     {
-                        endPreRun = AITTUpdate((float)(runTime - clockTime), Simulator.PreUpdate, ref dummy);
+                        endPreRun = AITTUpdate((float)((runTime - clockTime) / clockmult), Simulator.PreUpdate, ref dummy); //joe179star
                         Simulator.Signals.Update(true);
                         clockTime = runTime;
                         runTime += deltaTime;
