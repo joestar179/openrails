@@ -130,7 +130,9 @@ namespace Orts.Formats.Msts
         DAMPERS_FRONT,
         DAMPERS_BACK,
         STEAM_HEAT,
-        STEAM_BOOSTER,
+        STEAM_BOOSTER_AIR,
+        STEAM_BOOSTER_IDLE,
+        STEAM_BOOSTER_LATCH,
         WATER_INJECTOR1,
         WATER_INJECTOR2,
         SMALL_EJECTOR,
@@ -894,11 +896,19 @@ namespace Orts.Formats.Msts
                     }),
                 new STFReader.TokenProcessor("decreasecolour", ()=>{
                     stf.MustMatch("(");
-                    stf.ReadInt(0);
+                    int NumColor = stf.ReadInt(0);
                     if(stf.EndOfBlock() == false)
                     {
+                        if (NumColor == 0)
+                        {
+                            // no. of colors is set as 0 and therefor no color is defined, but if set anyway, it must be skipped
+                            stf.SkipRestOfBlock();
+                        }
+                        else
+                        {
                         stf.ParseBlock(new STFReader.TokenProcessor[] {
                             new STFReader.TokenProcessor("controlcolour", ()=>{ DecreaseColor = ParseControlColor(stf); }) });
+                    }
                     }
                 }),
                 new STFReader.TokenProcessor("ortsfont", ()=>{ParseFont(stf); }),
