@@ -24,10 +24,10 @@
 // #define DEBUG_REPORTS
 // #define DEBUG_CHECKTRAIN
 // #define DEBUG_DEADLOCK
-// #define DEBUG_EXTRAINFO
+#define DEBUG_EXTRAINFO
 // #define DEBUG_TRACEINFO
-// #define DEBUG_TTANALYSIS
-// #define DEBUG_DELAYS
+#define DEBUG_TTANALYSIS
+#define DEBUG_DELAYS
 // DEBUG flag for debug prints
 
 using System;
@@ -3987,8 +3987,8 @@ namespace Orts.Simulation.Timetables
             }
 
 #if DEBUG_REPORTS
-            DateTime baseDTd = new DateTime();
-            DateTime depTime = baseDTd.AddSeconds(presentTime2);
+            baseDTd = new DateTime();
+            depTime = baseDTd.AddSeconds(presentTime2);
 
             if (thisStation.ActualStopType == StationStop.STOPTYPE.STATION_STOP)
             {

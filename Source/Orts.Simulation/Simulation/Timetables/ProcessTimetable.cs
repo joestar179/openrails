@@ -20,14 +20,15 @@
 
 // Set debug flag to extract additional info
 // Info is printed to C:\temp\timetableproc.txt
-// #define DEBUG_TIMETABLE
-// #define DEBUG_TRACEINFO
+#define DEBUG_TIMETABLE
+#define DEBUG_TRACEINFO
 
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using Orts.Formats.Msts;
 using Orts.Formats.OR;
 using Orts.Parsers.OR;
