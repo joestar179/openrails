@@ -29,6 +29,8 @@ using Orts.Parsers.Msts;
 using Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions;
 using SharpDX.Direct2D1;
 using SharpDX.Direct3D9;
+using Orts.Formats.OR;
+using static Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions.Axle;
 
 namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
 {
@@ -281,23 +283,105 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
                 AxleList[i].Restore(inf);
             }
         }
+
+        /// <summary>
+        /// switch between Polach and Pacha adhesion calculation
+        /// </summary>
+        public static bool UsePolachAdhesion = false; // "static" so there's only one value in the program.
+        public bool PreviousUsePolachAdhesion = false; // Keep a note for each Axles so that we can tell if it changed.
+
         /// <summary>
         /// Updates each axle on the list
         /// </summary>
-        /// <param name="elapsedClockSeconds">Time span within the simulation cycle</param>
-        public void Update(float elapsedClockSeconds)
+        /// <param name="elapsedSeconds">Time span within the simulation cycle</param>
+        public void Update(float elapsedSeconds)
         {
+            UsePolachAdhesion = AdhesionPrecision.IsPrecisionHigh(this, elapsedSeconds, Car.Simulator.GameTime);
             foreach (var axle in AxleList)
             {
-                axle.Update(elapsedClockSeconds);
+                if (UsePolachAdhesion != PreviousUsePolachAdhesion) // There's been a transition
+                {
+                    axle.AxleSpeedMpS = axle.TrainSpeedMpS; // So the transition doesn't cause a wheelslip
             }
+                axle.Update(elapsedSeconds);
+            }
+            PreviousUsePolachAdhesion = UsePolachAdhesion;
         }
         public List<Axle>.Enumerator GetEnumerator()
         {
             return AxleList.GetEnumerator();
         }
+
+        static class AdhesionPrecision  // "static" so all "Axles" share the same level of precision
+        {
+            enum AdhesionPrecisionLevel
+            {
+                /// <summary>
+                /// Initial level uses Polach algorithm
+                /// </summary>
+                High = 0,
+                /// <summary>
+                /// Low-performance PCs use Pacha's algorithm
+                /// </summary>
+                Low = 1,
+                /// <summary>
+                /// After frequent transitions, low-performance PCs are locked to Pacha's algorithm
+                /// </summary>
+                LowLocked = 2
     }
 
+            // Adjustable limits
+            const float LowerLimitS = 0.025f;   // timespan 0.025 = 40 fps screen rate, low timeSpan and high FPS
+            const float UpperLimitS = 0.033f;   // timespan 0.033 = 30 fps screen rate, high timeSpan and low FPS
+            const double IntervalBetweenDowngradesLimitS = 5 * 60; // Locks in low precision if < 5 mins between downgrades
+
+            static AdhesionPrecisionLevel PrecisionLevel = AdhesionPrecisionLevel.High;
+            static double TimeOfLatestDowngrade = 0 - IntervalBetweenDowngradesLimitS; // Starts at -5 mins
+
+            // Tested by dropping the framerate below 30 fps interactively. Did this by opening and closing the HelpWindow after inserting
+            //   Threading.Thread.Sleep(40);
+            // into HelpWindow.PrepareFrame() temporarily.
+            public static bool IsPrecisionHigh(Axles axles, float elapsedSeconds, double gameTime)
+            {
+                // Switches between Polach (high precision) adhesion model and Pacha (low precision) adhesion model depending upon the PC performance
+                switch (PrecisionLevel)
+                {
+                    case AdhesionPrecisionLevel.High:
+                        if (elapsedSeconds > UpperLimitS)
+                        {
+                            var screenFrameRate = 1 / elapsedSeconds;
+                            var timeSincePreviousDowngradeS = gameTime - TimeOfLatestDowngrade;
+                            if (timeSincePreviousDowngradeS < IntervalBetweenDowngradesLimitS)
+                            {
+                                Trace.TraceInformation($"At {gameTime:F0} secs, advanced adhesion model switched to low precision permanently after {timeSincePreviousDowngradeS:F0} secs since previous switch (less than limit of {IntervalBetweenDowngradesLimitS})");
+                                PrecisionLevel = AdhesionPrecisionLevel.LowLocked;
+                            }
+                            else
+                            {
+                                TimeOfLatestDowngrade = gameTime;
+                                Trace.TraceInformation($"At {gameTime:F0} secs, advanced adhesion model switched to low precision after low frame rate {screenFrameRate:F1} below limit {1 / UpperLimitS:F0}");
+                                PrecisionLevel = AdhesionPrecisionLevel.Low;
+                            }
+                        }
+                        break;
+
+                    case AdhesionPrecisionLevel.Low:
+                        if (elapsedSeconds > 0 // When debugging step by step, elapsedSeconds == 0, so test for that
+                            && elapsedSeconds < LowerLimitS)
+                        {
+                            PrecisionLevel = AdhesionPrecisionLevel.High;
+                            var ScreenFrameRate = 1 / elapsedSeconds;
+                            Trace.TraceInformation($"At {gameTime:F0} secs, advanced adhesion model switched to high precision after high frame rate {ScreenFrameRate:F1} above limit {1 / LowerLimitS:F0}");
+                        }
+                        break;
+
+                    case AdhesionPrecisionLevel.LowLocked:
+                        break;
+                }
+                return (PrecisionLevel == AdhesionPrecisionLevel.High);
+            }
+        }
+    }
 
 
     /// <summary>
@@ -432,11 +516,6 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
         float forceToAccelerationFactor;
 
         /// <summary>
-        /// switch between Polach and Pacha adhesion calculation
-        /// </summary>
-        bool UsePolachAdhesion = false;
-
-        /// <summary>
         /// Pre-calculation of slip characteristics at 0 slip speed
         /// </summary>
         double axleStaticForceN;
@@ -558,7 +637,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
         /// <summary>
         /// Axle speed value, in metric meters per second
         /// </summary>
-        public double AxleSpeedMpS { get; private set; }
+        public double AxleSpeedMpS { get; set; }
 
         /// <summary>
         /// Axle angular position in radians
@@ -842,7 +921,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
             double slipSpeedMpS = axleSpeedMpS - TrainSpeedMpS;
             double axleOutForceN = 0;
 
-            if (UsePolachAdhesion)
+            if (Axles.UsePolachAdhesion)
             {
                 axleOutForceN = Math.Sign(slipSpeedMpS) * AxleWeightN * SlipCharacteristicsPolach(slipSpeedMpS);
             }
@@ -888,7 +967,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
             if (elapsedClockSeconds <= 0) return;
             double prevSpeedMpS = AxleSpeedMpS;
 
-            if (UsePolachAdhesion)
+            if (Axles.UsePolachAdhesion)
             {
 
                 float upperSubStepLimit = 100;
@@ -977,7 +1056,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
             {
                 var k1 = GetAxleMotionVariation(AxleSpeedMpS, dt);
 
-                if (i == 0 && !UsePolachAdhesion)
+                if (i == 0 && !Axles.UsePolachAdhesion)
                 {
                     if (k1.Item1 * dt > Math.Max((Math.Abs(SlipSpeedMpS) - 1) * 10, 1) / 100)
                     {
@@ -1017,37 +1096,12 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
         /// - computes axle dynamic model according to its driveType
         /// - computes wheelslip indicators
         /// </summary>
-        /// <param name="timeSpan"></param>
-        public virtual void Update(float timeSpan)
+        /// <param name="elapsedSeconds"></param>
+        public virtual void Update(float elapsedSeconds)
         {
-            // Test to determine whether to use Polach or Pacha adhesion
-                        
-            // Switches between Polach (high performance) adhesion model and Pacha (low performance) adhesion model depending upon the PC performance
-            if(timeSpan < 0.025) // timespan 0.025 = 40 fps screen rate, low timeSpan and high FPS
+            if (Axles.UsePolachAdhesion)
             {
-                UsePolachAdhesion = true;
-            }
-            else if(timeSpan > 0.033) // timespan 0.033 = 30 fps screen rate, high timeSpan and low FPS
-            {
-                UsePolachAdhesion = false;
-                if (TrainSpeedMpS > 0 )
-                {
-                    var ScreenFrameRate = 1 / timeSpan;
-                    Trace.TraceInformation("Advanced adhesion model switched to low performance option due to low frame rate {0} at ElapsedClockSeconds of {1}", ScreenFrameRate, timeSpan);
-
-                }
-
-                // Set values for Pacha adhesion
-                WheelSlipThresholdMpS = MpS.FromKpH(AdhesionK / AdhesionLimit);
-                WheelAdhesion = 0.99f;
-                MaximumPolachWheelAdhesion = 0.99f;
-
-            }
-            
-            forceToAccelerationFactor = WheelRadiusM * WheelRadiusM / totalInertiaKgm2;        
-
-            if (UsePolachAdhesion)
-            {
+                forceToAccelerationFactor = WheelRadiusM * WheelRadiusM / totalInertiaKgm2;
 
                 Polach.Update();
                 axleStaticForceN = AxleWeightN * SlipCharacteristicsPolach(0);
@@ -1059,6 +1113,15 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
                     Polach.Update();
                     axleStaticForceN = AxleWeightN * SlipCharacteristicsPolach(0);
                 }
+            }
+            else
+            {
+                // Set values for Pacha adhesion
+                WheelSlipThresholdMpS = MpS.FromKpH(AdhesionK / AdhesionLimit);
+                WheelAdhesion = 0.99f;
+                MaximumPolachWheelAdhesion = 0.99f;
+
+                forceToAccelerationFactor = WheelRadiusM * WheelRadiusM / totalInertiaKgm2;
             }
 
 #if DEBUG_ADHESION
@@ -1084,9 +1147,9 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
             Console.WriteLine("");
 #endif
 
-            motor?.Update(timeSpan);
+            motor?.Update(elapsedSeconds);
 
-            Integrate(timeSpan);
+            Integrate(elapsedSeconds);
             // TODO: We should calculate brake force here
             // Adding and substracting the brake force is correct for normal operation,
             // but during wheelslip this will produce wrong results.
@@ -1114,14 +1177,14 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
                 {
                     IsWheelSlip = IsWheelSlipWarning = true;
                 }
-                WheelSlipTimeS += timeSpan;
+                WheelSlipTimeS += elapsedSeconds;
             }
             else if (Math.Abs(SlipSpeedPercent) > SlipWarningTresholdPercent)
             {
                 // Wait some time before indicating wheelslip to avoid false triggers
                 if (WheelSlipWarningTimeS > 1) IsWheelSlipWarning = true;
                 IsWheelSlip = false;
-                WheelSlipWarningTimeS += timeSpan;
+                WheelSlipWarningTimeS += elapsedSeconds;
             }
             else
             {
@@ -1130,12 +1193,12 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
                 WheelSlipWarningTimeS = WheelSlipTimeS = 0;
             }
 
-            if (timeSpan > 0.0f)
+            if (elapsedSeconds > 0.0f)
             {
-                slipDerivationMpSS = (SlipSpeedMpS - previousSlipSpeedMpS) / timeSpan;
+                slipDerivationMpSS = (SlipSpeedMpS - previousSlipSpeedMpS) / elapsedSeconds;
                 previousSlipSpeedMpS = SlipSpeedMpS;
 
-                slipDerivationPercentpS = (SlipSpeedPercent - previousSlipPercent) / timeSpan;
+                slipDerivationPercentpS = (SlipSpeedPercent - previousSlipPercent) / elapsedSeconds;
                 previousSlipPercent = SlipSpeedPercent;
             }
         }
@@ -1230,6 +1293,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions
                 polach_Ks = (1.2 * zeroSpeedAdhesion) - 0.26;
                 if (polach_Ks < 0.1) polach_Ks = 0.1f;
             }
+
             public double SlipCharacteristics(double slipSpeedMpS)
             {
                 var polach_uadhesion = zeroSpeedAdhesion * (((1 - polach_A) * Math.Exp(-polach_B * slipSpeedMpS)) + polach_A);

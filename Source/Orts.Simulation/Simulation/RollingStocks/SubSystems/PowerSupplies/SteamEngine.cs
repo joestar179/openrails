@@ -352,6 +352,11 @@ namespace Orts.Simulation.Simulation.RollingStocks.SubSystems.PowerSupplies
         public float TractiveForceN;
 
         /// <summary>
+        /// Steam Engine average tractive force
+        /// </summary>
+        public float AverageTractiveForceN;
+
+        /// <summary>
         /// Steam Engine maximum indicated horsepower
         /// </summary>
         public float MaxIndicatedHorsePowerHP;
@@ -541,6 +546,11 @@ namespace Orts.Simulation.Simulation.RollingStocks.SubSystems.PowerSupplies
         /// Steam usage per steam engine steam cocks
         /// </summary>
         public float CylCockSteamUsageLBpS;
+
+        /// <summary>
+        /// Cylinder steam cocks atmospheric pressure usage per steam engine steam cocks
+        /// </summary>
+        public float CylinderCocksPressureAtmPSI;
 
         /// <summary>
         /// Indicated HP Horse Power for Compound
