@@ -2456,7 +2456,7 @@ namespace Orts.Simulation.RollingStocks
         /// <summary>
         /// This function applies a sign to the motive force as a function of the direction of the train.
         /// </summary>
-        protected virtual void ApplyDirectionToTractiveForce(ref float tractiveForceN, int numberofengine )
+        protected virtual void ApplyDirectionToTractiveForce(ref float tractiveForceN, int numberofengine = 0 )
         {
             if (Train.IsPlayerDriven)
             {
@@ -2798,6 +2798,8 @@ namespace Orts.Simulation.RollingStocks
                 WheelSlip = LocomotiveAxles.IsWheelSlip;
                 WheelSlipWarning = LocomotiveAxles.IsWheelSlipWarning;
             }
+            
+            WheelSpeedMpS = (float)LocomotiveAxles[0].AxleSpeedMpS;
         }
 
         public void SimpleAdhesion()

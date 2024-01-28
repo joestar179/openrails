@@ -1268,10 +1268,10 @@ Steam Locomotives with Multiple Engines
 
 Some steam locomotives can have multiple steam engines (ie separate steam 
 cylinders connected to different wheels), such as the 4-4-4-4 locomotive or 
-an articulated Garrat locomotive.
+an articulated Garratt locomotive.
 
-To configure these types of locomotives configurations for multiple steam 
-engines need to be added to the engine section of the ENG file, would have the 
+To configure these types of locomotives configurations, multiple steam 
+engines need to be added to the engine section of the ENG file. These should have the 
 following format::
 
     ORTSSteamEngines ( x
@@ -1290,7 +1290,7 @@ The following parameters can be used to configure the steam engine::
 ``MaxIndicatedHorsepower`` - maximum indicated horsepower of steam engine.
 ``AttachedAxle`` - the axle wheelset that the steam engine is attached to.
 
-To specify the engine as a Booster engine the following additional parameters 
+To specify the engine as a Booster engine, the following additional parameters 
 can be used::
 
 ``BoosterCutoff`` - the cutoff point for the Booster steam cylinder.
@@ -1298,6 +1298,30 @@ can be used::
 ``BoosterGearRatio`` - the gear ratio of the Booster engine.
 ``AuxiliarySteamEngineType`` - by inserting "Booster" into this parameter the 
 engine is defined as a Booster engine.
+
+The following steam effects are defined for the 2nd multuple engine:
+
+i) Steam Exhausts - these are the exhausts from the two steam cylinders, and would be 
+located wherever the steam exhausted out of the cylinders, 
+``CylinderSteamExhaust2_1FX``, ``CylinderSteamExhaust2_2FX``, where "x_yFX", 
+x = engine number and y = cylinder number.
+
+ii) Cylinder Cocks Exhaust - the exhaust out of the cylinder drainage cocks, 
+``Cylinders2_11FX``, ``Cylinders2_12FX``, ``Cylinders2_21FX``, ``Cylinders2_22FX``, 
+where "x_yzFX", x = engine number, y = cylinder number and z = cylinder position.
+
+The following steam effects are defined for the Booster Engine:
+
+i) Steam Exhausts - these are the exhausts from the two steam cylinders, and would be 
+located wherever the steam exhausted out of the cylinders, 
+``BoosterCylinderSteamExhaust01FX``, ``BoosterCylinderSteamExhaust02FX``
+
+ii) Cylinder Cocks Exhaust - the exhaust out of the cylinder drainage cocks, 
+``BoosterCylinders11FX``, ``BoosterCylinders12FX``, ``BoosterCylinders21FX``, 
+``BoosterCylinders22FX``, where "xyFX", x = cylinder number, and y = cylinder position.
+
+The following CAB controls have been defined, ``STEAM_BOOSTER_AIR``, ``STEAM_BOOSTER_IDLE``,
+ ``STEAM_BOOSTER_LATCH``, ``STEAM_BOOSTER_PRESSURE``.
 
 Locomotive Types
 ................
@@ -3082,6 +3106,7 @@ MaxAuxilaryChargingRate and EmergencyResChargingRate.
    single: ORTSEmergencyValveActuationRate
    single: ORTSEmergencyDumpValveRate
    single: ORTSEmergencyDumpValveTimer
+   single: ORTSEmergencyQuickAction
    single: ORTSEmergencyResQuickRelease
    single: ORTSMainResPipeAuxResCharging
    single: ORTSBrakeRelayValveRatio
@@ -3090,8 +3115,15 @@ MaxAuxilaryChargingRate and EmergencyResChargingRate.
    single: ORTSBrakeRelayValveReleaseRate
    single: ORTSMaxTripleValveCylinderPressure
    single: ORTSMaxServiceCylinderPressure
+   single: ORTSMaxServiceApplicationRate
+   single: ORTSTwoStageLowPressure
+   single: ORTSTwoStageIncreasingSpeed
+   single: ORTSTwoStageDecreasingSpeed
+   single: ORTSHighSpeedReducingPressure
    single: ORTSUniformChargingThreshold
    single: ORTSUniformChargingRatio
+   single: ORTSUniformReleaseThreshold
+   single: ORTSUniformReleaseRatio
    single: ORTSQuickServiceLimit
    single: ORTSQuickServiceApplicationRate
    single: ORTSQuickServiceVentRate
@@ -3135,9 +3167,12 @@ MaxAuxilaryChargingRate and EmergencyResChargingRate.
 - ``Wagon(ORTSEmergencyDumpValveTimer`` -- Timer for emergency dump valve to close
   after it is activated. If set to 0, it will close as soon as BP is discharged.
   Default value will prevent BP from being charged for 2 minutes.
+- ``Wagon(ORTSEmergencyQuickAction`` -- If set to 1, air from the brake pipe will
+  be sent to the brake cylinder at MaxApplicationRate during emergency applications.
+  Speeds up emergency application along the entire train. (default 0)
 - ``Wagon(ORTSEmergencyResQuickRelease`` -- Set to 1 (default 0) to enable quick release,
   in which emergency reservoir air is used to increase the brake pipe pressure
-  during release. Remains active until brake cylinder pressure drops below 5 psi.
+  during release. Remains active until aux res has recharged.
 - ``Wagon(ORTSMainResPipeAuxResCharging`` -- Boolean value that indicates,
   for twin pipe systems, if the main reservoir pipe is used for charging the auxiliary
   reservoirs. If set to false, the main reservoir pipe will not be used
@@ -3161,12 +3196,32 @@ MaxAuxilaryChargingRate and EmergencyResChargingRate.
 - ``Wagon(ORTSMaxServiceCylinderPressure`` -- Sets the maximum cylinder pressure
   demanded during service applications. During emergency applications,
   brake cylinder pressure is instead limited by ``ORTSMaxTripleValveCylinderPressure``.
+- ``Wagon(ORTSMaxServiceApplicationRate`` -- Sets the maximum application rate
+  allowed during service applications. For emergency applications, the application
+  rate will be limited by ``MaxApplicationRate``.
+- ``Wagon(ORTSTwoStageLowPressure`` -- For two stage braking systems where brake force
+  is reduced at lower speeds and increased at higher speeds, sets the maximum cylinder
+  pressure demanded when at slower speeds (defaults to 0, disabling two stage braking).
+  For high speed, use ``ORTSMaxTripleValveCylinderPressure`` to set the pressure limit.
+- ``Wagon(ORTSTwoStageIncreasingSpeed`` -- The speed at which the two stage braking
+  system changes from low pressure to high pressure during acceleration.
+- ``Wagon(ORTSTwoStageDecreasingSpeed`` -- The speed at which the two stage braking
+  system changes from high pressure to low pressure during deceleration.
+- ``Wagon(ORTSHighSpeedReducingPressure`` -- If the demanded brake cylinder pressure
+  exceeds this value, the brakes will gradually release to this pressure. Simulates
+  the high speed reducing valve (HSRV). (default 0 for wagons with no HSRV)
 - ``Wagon(ORTSUniformChargingThreshold`` -- The pressure difference between the brake
   pipe and auxiliary reservoir at which uniform charging activates during release
   (default 3 psi), usually used to reduce the rate of auxiliary reservoir charging.
 - ``Wagon(ORTSUniformChargingRatio`` -- Factor used to divide auxiliary reservoir
   charging rate by when uniform charging is active. Eg: setting of 2 will halve
   charging rate while uniform charging is active (defaults to 0, disabling the feature).
+- ``Wagon(ORTSUniformReleaseThreshold`` -- The pressure difference between the brake
+  pipe and auxiliary reservoir at which uniform release activates during release
+  (default 3 psi), usually used to reduce the rate of brake cylinder release.
+- ``Wagon(ORTSUniformReleaseRatio`` -- Factor used to divide brake cylinder
+  release rate by when uniform release is active. Eg: setting of 2 will halve
+  release rate while uniform release is active (defaults to 0, disabling the feature).
 - ``Wagon(ORTSQuickServiceLimit`` -- Quick service activates when triple valve
   initially changes from release to apply, and will remain active until brake
   cylinder pressure reaches the pressure specified here (default 0,
