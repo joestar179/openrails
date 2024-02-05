@@ -237,6 +237,18 @@ advanced adhesion model dynamics. The value considers the inertia of all
 the axles and traction drives. If not set, the value is estimated from the
 locomotive mass and maximal power.
 
+By inserting multiple "Axle" sections in the above configuration, multiple 
+indpependent wheelsets can be defined which will operate independently of 
+each other. The following parameters can be inserted to characterise the 
+performance of the wheelset.
+
+``AnimatedParts`` - animated parts associated with the axles wheelset.
+``Weight`` - weight on the axles in the wheelset.
+``ORTSRadius`` - radius of the wheels in the wheelset.
+``NumberWheelsetAxles`` - number of axles in the wheelset.
+``ORTSFlangeAngle`` - flange angle of the wheels in the wheelset.
+``ORTSInertia`` - inertia of the wheels in the wheelset.
+
 The first model -- simple adhesion model -- is a simple tractive force
 condition-based computation. If the tractive force reaches its actual
 maximum, the wheel slip is indicated in HUD view and the tractive force
@@ -259,12 +271,17 @@ wheel adhesion. The first model is based upon an algorithm by Pacha, whilst the 
 uses an algorithm developed by Polach. The Polach algorithm provides 
 a more accurate outcome and facilitates the future inclusion of track conditions. 
 However due to the number of algorithm steps required to calculate the wheel adhesion 
-value, it is more CPU load intensive then the Pacha one. This can produce low 
-frame rates for the screen display in machines with low performance specifications. 
+value, it is more CPU load-intensive then the Pacha one. On low performance PCs, this would lower the 
+frame rate for the screen display to an unacceptable degree. 
 
-Hence OR automatically senses the CPU load, and switches to the Pacha algorithm at 
-high loads and to the Polach algorithm under lower CPU loads. In this way OR attempts 
-to support the operation of lower specification computers. When OR is using the 
+To avoid this, OR senses the frame rate and switches from the Polach algorithm 
+to the Pacha one as follows.
+If the frame rate falls below 30 fps, then a switch is made to Pacha until the frame rate
+recovers to more than 40 fps. If a switch to Pacha happens more than once in a 5 minute interval
+then it will persist for the rest of the session.
+
+In this way OR provides a more accurate algorithm whilst retaining 
+the original one for lower specification computers. When OR is using the 
 Pacha algorithm, the "Wheel Adh (Max)" values will both read 99%, whereas when the 
 Polach algorithm is being used these values will be around the expected values of 30-55%.
 
@@ -275,6 +292,7 @@ The heart of the adhesion algorithm is the slip characteristics (pictured below)
 .. image:: images/physics-adhesion-slip.png
    :align: center
    :scale: 70%
+
 
 The *wheel creep* describes the stable area of the characteristics and is
 used in the most of the operation time. When the tractive force reaches
@@ -1252,6 +1270,66 @@ boiler. In addition the ability to inject and exhaust steam from the
 cylinder also tended to reach finite limits as well. These factors
 typically combined to place limits on the power of a locomotive depending
 upon the design factors used.
+
+Steam Locomotives with Multiple Engines
+.......................................
+
+Some steam locomotives can have multiple steam engines (ie separate steam 
+cylinders connected to different wheels), such as the 4-4-4-4 locomotive or 
+an articulated Garratt locomotive.
+
+To configure these types of locomotives configurations, multiple steam 
+engines need to be added to the engine section of the ENG file. These should have the 
+following format::
+
+    ORTSSteamEngines ( x
+        Wheelset (
+           
+        )
+    )
+
+where x = number of steam engines fitted to locomotive.
+
+The following parameters can be used to configure the steam engine::
+
+``NumCylinders`` - number of steam cylinders in engine.
+``CylinderStroke`` - stroke of steam cylinder.
+``CylinderDiameter`` - diameter of steam cylinder.
+``MaxIndicatedHorsepower`` - maximum indicated horsepower of steam engine.
+``AttachedAxle`` - the axle wheelset that the steam engine is attached to.
+
+To specify the engine as a Booster engine, the following additional parameters 
+can be used::
+
+``BoosterCutoff`` - the cutoff point for the Booster steam cylinder.
+``BoosterThrottleCutoff`` - the locomotive cutoff point where the Booster unlatches.
+``BoosterGearRatio`` - the gear ratio of the Booster engine.
+``AuxiliarySteamEngineType`` - by inserting "Booster" into this parameter the 
+engine is defined as a Booster engine.
+
+The following steam effects are defined for the 2nd multuple engine:
+
+i) Steam Exhausts - these are the exhausts from the two steam cylinders, and would be 
+located wherever the steam exhausted out of the cylinders, 
+``CylinderSteamExhaust2_1FX``, ``CylinderSteamExhaust2_2FX``, where "x_yFX", 
+x = engine number and y = cylinder number.
+
+ii) Cylinder Cocks Exhaust - the exhaust out of the cylinder drainage cocks, 
+``Cylinders2_11FX``, ``Cylinders2_12FX``, ``Cylinders2_21FX``, ``Cylinders2_22FX``, 
+where "x_yzFX", x = engine number, y = cylinder number and z = cylinder position.
+
+The following steam effects are defined for the Booster Engine:
+
+i) Steam Exhausts - these are the exhausts from the two steam cylinders, and would be 
+located wherever the steam exhausted out of the cylinders, 
+``BoosterCylinderSteamExhaust01FX``, ``BoosterCylinderSteamExhaust02FX``
+
+ii) Cylinder Cocks Exhaust - the exhaust out of the cylinder drainage cocks, 
+``BoosterCylinders11FX``, ``BoosterCylinders12FX``, ``BoosterCylinders21FX``, 
+``BoosterCylinders22FX``, where "xyFX", x = cylinder number, and y = cylinder position.
+
+The following CAB controls have been defined, ``STEAM_BOOSTER_AIR``, ``STEAM_BOOSTER_IDLE``,
+ ``STEAM_BOOSTER_LATCH``, ``STEAM_BOOSTER_PRESSURE``.
 
 Locomotive Types
 ................
@@ -2272,6 +2350,52 @@ The actual set value of traction or dynamic brake of *async* group is shown in
 lines *Throttle* and *Dynamic Brake*, respectively, in brackets, e.g.: 
 Throttle: 0% (50%).
 
+In addition to applying power and dynamic brake, remote units can also manage the
+train brake, independent brake, and emergency brake in sync with the lead locomotive.
+This can dramatically speed up brake application and release on long trains, which has
+allowed trains to increase in length substantially without major decreases in brake
+performance. Only one locomotive in each group, the 'lead' DP unit, will have brakes
+cut-in. Usually this is the same locomotive recieving throttle data from the lead
+locomotive. In Open Rails, these locomotives are designated automatically. To determine
+which units are the 'lead' in each group, check the ID row on the DPU Info window.
+
+As described earlier, operation in *sync* mode or *async* mode has no effect on air
+brake behavior. In reality, additional remote modes such as *set-out*, *bv out*,
+and *isolate* would disable air brakes on remote units, but these modes are not
+present for simplicity.
+
+.. index::
+   single: ORTSDPBrakeSynchronization
+
+By default, Open Rails will treat remote groups as manned helpers who typically
+would not assist in train brake operations, so only independent brakes will synchronize.
+To enable train brake synchronization, the token ``engine(ORTSDPBrakeSynchronization(``
+should be used. The valid settings for ``ORTSDPBrakeSynchronization`` are as follows:
+
+- ``"Apply"``: DP units will reduce the brake pipe pressure locally to match the
+  equalizing reservoir pressure of the controlling locomotive. (The controlling
+  locomotive must also have the ``"Apply"`` setting.)
+- ``"Release"``: DP units will increase the brake pipe pressure locally to match
+  the equalizing reservoir pressure of the controlling locomotive. (The controlling
+  locomotive must also have the ``"Release"`` setting.)
+- ``"Emergency"``: DP units will vent the brake pipe to 0 if an emergency application
+  is triggered by the controlling locomotive. (The controlling locomotive must also
+  have the ``"Emergency"`` setting.)
+- ``"Independent"``: DP units will match the brake cylinder pressure of the
+  controlling locomotive, and will automatically bail-off automatic brake
+  applications if needed. (The controlling locomotive must also have the
+  ``"Independent"`` setting.)
+                - NOTE: Although ``"Independent"`` is enabled by default,
+                  if ``ORTSDPBrakeSynchronization`` is present in the .eng
+                  file but ``"Independent"`` is not specified as an option,
+                  independent brakes will NOT be synchronized.
+
+All settings can be combined as needed, simply place a comma between each setting
+in the string: ``ORTSDPBrakeSynchronization("Apply, Release, Emergency, Independent")``
+will simulate the configuration of most modern locomotives. Unlike other distributed power
+features, brake synchronization can be applied to any locomotive type to simulate a wide
+variety of braking systems.
+
 Distributed power info and commands can also be displayed and operated through 
 cabview controls, as explained :ref:`here <cabs-distributed-power>`
 
@@ -2986,7 +3110,7 @@ the following parameters will adjust the behaviour of air brakes:
   air brakes are released while dynamic brakes satisfy the train brake demand.
   If dynamic braking is not sufficient, air brakes will be partially applied
   so the combination air+dynamic provides the required brake demand.
-
+  
 Sometimes the train brake controller is capable to apply the dynamic
 brakes for the whole consist, usually as a first step before air brakes
 are applied. This is usually known as "train blending", as opposed to 
@@ -3036,6 +3160,7 @@ MaxAuxilaryChargingRate and EmergencyResChargingRate.
    single: ORTSEmergencyValveActuationRate
    single: ORTSEmergencyDumpValveRate
    single: ORTSEmergencyDumpValveTimer
+   single: ORTSEmergencyQuickAction
    single: ORTSEmergencyResQuickRelease
    single: ORTSMainResPipeAuxResCharging
    single: ORTSBrakeRelayValveRatio
@@ -3044,8 +3169,15 @@ MaxAuxilaryChargingRate and EmergencyResChargingRate.
    single: ORTSBrakeRelayValveReleaseRate
    single: ORTSMaxTripleValveCylinderPressure
    single: ORTSMaxServiceCylinderPressure
+   single: ORTSMaxServiceApplicationRate
+   single: ORTSTwoStageLowPressure
+   single: ORTSTwoStageIncreasingSpeed
+   single: ORTSTwoStageDecreasingSpeed
+   single: ORTSHighSpeedReducingPressure
    single: ORTSUniformChargingThreshold
    single: ORTSUniformChargingRatio
+   single: ORTSUniformReleaseThreshold
+   single: ORTSUniformReleaseRatio
    single: ORTSQuickServiceLimit
    single: ORTSQuickServiceApplicationRate
    single: ORTSQuickServiceVentRate
@@ -3089,9 +3221,12 @@ MaxAuxilaryChargingRate and EmergencyResChargingRate.
 - ``Wagon(ORTSEmergencyDumpValveTimer`` -- Timer for emergency dump valve to close
   after it is activated. If set to 0, it will close as soon as BP is discharged.
   Default value will prevent BP from being charged for 2 minutes.
+- ``Wagon(ORTSEmergencyQuickAction`` -- If set to 1, air from the brake pipe will
+  be sent to the brake cylinder at MaxApplicationRate during emergency applications.
+  Speeds up emergency application along the entire train. (default 0)
 - ``Wagon(ORTSEmergencyResQuickRelease`` -- Set to 1 (default 0) to enable quick release,
   in which emergency reservoir air is used to increase the brake pipe pressure
-  during release. Remains active until brake cylinder pressure drops below 5 psi.
+  during release. Remains active until aux res has recharged.
 - ``Wagon(ORTSMainResPipeAuxResCharging`` -- Boolean value that indicates,
   for twin pipe systems, if the main reservoir pipe is used for charging the auxiliary
   reservoirs. If set to false, the main reservoir pipe will not be used
@@ -3115,12 +3250,32 @@ MaxAuxilaryChargingRate and EmergencyResChargingRate.
 - ``Wagon(ORTSMaxServiceCylinderPressure`` -- Sets the maximum cylinder pressure
   demanded during service applications. During emergency applications,
   brake cylinder pressure is instead limited by ``ORTSMaxTripleValveCylinderPressure``.
+- ``Wagon(ORTSMaxServiceApplicationRate`` -- Sets the maximum application rate
+  allowed during service applications. For emergency applications, the application
+  rate will be limited by ``MaxApplicationRate``.
+- ``Wagon(ORTSTwoStageLowPressure`` -- For two stage braking systems where brake force
+  is reduced at lower speeds and increased at higher speeds, sets the maximum cylinder
+  pressure demanded when at slower speeds (defaults to 0, disabling two stage braking).
+  For high speed, use ``ORTSMaxTripleValveCylinderPressure`` to set the pressure limit.
+- ``Wagon(ORTSTwoStageIncreasingSpeed`` -- The speed at which the two stage braking
+  system changes from low pressure to high pressure during acceleration.
+- ``Wagon(ORTSTwoStageDecreasingSpeed`` -- The speed at which the two stage braking
+  system changes from high pressure to low pressure during deceleration.
+- ``Wagon(ORTSHighSpeedReducingPressure`` -- If the demanded brake cylinder pressure
+  exceeds this value, the brakes will gradually release to this pressure. Simulates
+  the high speed reducing valve (HSRV). (default 0 for wagons with no HSRV)
 - ``Wagon(ORTSUniformChargingThreshold`` -- The pressure difference between the brake
   pipe and auxiliary reservoir at which uniform charging activates during release
   (default 3 psi), usually used to reduce the rate of auxiliary reservoir charging.
 - ``Wagon(ORTSUniformChargingRatio`` -- Factor used to divide auxiliary reservoir
   charging rate by when uniform charging is active. Eg: setting of 2 will halve
   charging rate while uniform charging is active (defaults to 0, disabling the feature).
+- ``Wagon(ORTSUniformReleaseThreshold`` -- The pressure difference between the brake
+  pipe and auxiliary reservoir at which uniform release activates during release
+  (default 3 psi), usually used to reduce the rate of brake cylinder release.
+- ``Wagon(ORTSUniformReleaseRatio`` -- Factor used to divide brake cylinder
+  release rate by when uniform release is active. Eg: setting of 2 will halve
+  release rate while uniform release is active (defaults to 0, disabling the feature).
 - ``Wagon(ORTSQuickServiceLimit`` -- Quick service activates when triple valve
   initially changes from release to apply, and will remain active until brake
   cylinder pressure reaches the pressure specified here (default 0,

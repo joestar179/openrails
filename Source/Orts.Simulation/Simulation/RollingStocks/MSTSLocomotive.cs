@@ -147,7 +147,7 @@ namespace Orts.Simulation.RollingStocks
         public bool OnLineCabRadio;
         public string OnLineCabRadioURL;
 
-        float ZeroSpeedAdhesionBase;
+        public float ZeroSpeedAdhesionBase;
 
         public float FilteredBrakePipeFlowM3pS;
         public IIRFilter AFMFilter;
@@ -204,6 +204,8 @@ namespace Orts.Simulation.RollingStocks
         public float BoilerPressurePSI;     // Steam Gauge pressure - what the engineer sees.
         public float MaxBoilerPressurePSI = 180f;  // maximum boiler pressure, safety valve setting
 
+        public float SandingSteamUsageLBpS;       // Sanding Steam Usage
+
         // Vacuum Reservoir and Exhauster Settings
 
         // Steam heating Flags
@@ -248,12 +250,14 @@ namespace Orts.Simulation.RollingStocks
         float DebugSpeed = 1; // Used for debugging adhesion coefficient
 
         // parameters for Track Sander based upon compressor air and abrasive table for 1/2" sand blasting nozzle @ 50psi
-        public float MaxTrackSandBoxCapacityM3 = Me3.FromFt3(40.0f);  // Capacity of sandbox - assume 40.0 cu ft
+        public float MaxTrackSandBoxCapacityM3; // Capacity of sandbox
         public float CurrentTrackSandBoxCapacityM3; 
-        public float TrackSanderAirComsumptionM3pS = Me3.FromFt3(195.0f) / 60.0f;  // Default value - cubic feet per min (CFM) 195 ft3/m
-        public float TrackSanderAirPressurePSI = 50.0f;
-        public float TrackSanderSandConsumptionM3pS = Me3.FromFt3(11.6f) / 3600.0f; // Default value - 11.6 ft3/h
+        public float TrackSanderAirComsumptionM3pS;
+        public float TrackSanderSandConsumptionM3pS;
         public float SandWeightKgpM3 = 1600; // One cubic metre of sand weighs about 1.54-1.78 tonnes. 
+        public float TrackSanderSteamConsumptionForwardLbpS;
+        public float TrackSanderSteamConsumptionReverseLbpS;
+
 
         // Vacuum Braking parameters
         readonly static float OneAtmospherePSI = Bar.ToPSI(1);
@@ -428,6 +432,10 @@ namespace Orts.Simulation.RollingStocks
         public bool DoesBrakeCutPower { get; private set; }
         public float BrakeCutsPowerAtBrakeCylinderPressurePSI { get; private set; }
         public bool DoesHornTriggerBell { get; private set; }
+        public bool DPSyncTrainApplication { get; private set; }
+        public bool DPSyncTrainRelease { get; private set; }
+        public bool DPSyncEmergency { get; private set; }
+        public bool DPSyncIndependent { get; private set; } = true;
 
         protected const float DefaultCompressorRestartToMaxSysPressureDiff = 35;    // Used to check if difference between these two .eng parameters is correct, and to correct it
         protected const float DefaultMaxMainResToCompressorRestartPressureDiff = 10; // Used to check if difference between these two .eng parameters is correct, and to correct it
@@ -927,6 +935,19 @@ namespace Orts.Simulation.RollingStocks
                         STFException.TraceWarning(stf, "Skipped unknown engine type " + engineType);
                     }
                     break;
+                case "engine(sandingsystemtype":
+                    stf.MustMatch("(");
+                    var sandingType = stf.ReadString();
+                    try
+                    {
+                        SandingSystemType = (SandingSystemTypes)Enum.Parse(typeof(SandingSystemTypes), sandingType.First().ToString().ToUpper() + sandingType.Substring(1));
+                    }
+                    catch
+                    {
+                        STFException.TraceWarning(stf, "Skipped unknown engine type " + sandingType);
+                    }
+                    break;
+
                 case "engine(ortstractionmotortype":
                     stf.MustMatch("(");
                     string tractionMotorType = stf.ReadString().ToUpper();
@@ -1110,6 +1131,19 @@ namespace Orts.Simulation.RollingStocks
                         }
                     }
                     break;
+                case "engine(ortsdpbrakesynchronization":
+                    var dpSyncModes = stf.ReadStringBlock("").ToLower().Replace(" ", "").Split(',');
+                    if (dpSyncModes.Contains("apply"))
+                        DPSyncTrainApplication = true;
+                    if (dpSyncModes.Contains("release"))
+                        DPSyncTrainRelease = true;
+                    if (dpSyncModes.Contains("emergency"))
+                        DPSyncEmergency = true;
+                    if (dpSyncModes.Contains("independent"))
+                        DPSyncIndependent = true;
+                    else // Independent synchronization is assumed to be enabled unless explicitly not enabled
+                        DPSyncIndependent = false;
+                    break;
                 case "engine(ortsdynamicblendingoverride": DynamicBrakeBlendingOverride = stf.ReadBoolBlock(false); break;
                 case "engine(ortsdynamicblendingforcematch": DynamicBrakeBlendingForceMatch = stf.ReadBoolBlock(false); break;
                 case "engine(vacuumbrakeshasvacuumpump": VacuumPumpFitted = stf.ReadBoolBlock(false); break;
@@ -1163,6 +1197,7 @@ namespace Orts.Simulation.RollingStocks
             UnloadingSpeedMpS = locoCopy.UnloadingSpeedMpS;
             SlipControlSystem = locoCopy.SlipControlSystem;
             EngineType = locoCopy.EngineType;
+            SandingSystemType = locoCopy.SandingSystemType;
             TractionMotorType = locoCopy.TractionMotorType;
             TractiveForceCurves = locoCopy.TractiveForceCurves;
             MaxContinuousForceN = locoCopy.MaxContinuousForceN;
@@ -1732,6 +1767,33 @@ namespace Orts.Simulation.RollingStocks
                 }
             }
 
+            // Initialise track sanding parameters
+            if (MaxTrackSandBoxCapacityM3 == 0)
+            {
+                MaxTrackSandBoxCapacityM3 = Me3.FromFt3(40.0f);  // Capacity of sandbox - assume 40.0 cu ft
+            }
+
+            if (TrackSanderAirComsumptionM3pS == 0)
+            {
+                TrackSanderAirComsumptionM3pS = Me3.FromFt3(195.0f) / 60.0f;  // Default value - cubic feet per min (CFM) 195 ft3/m
+            }
+
+            if (TrackSanderSandConsumptionM3pS == 0)
+            {
+                TrackSanderSandConsumptionM3pS = Me3.FromFt3(11.6f) / 3600.0f; // Default value - 11.6 ft3/h
+            }
+
+            if (TrackSanderSteamConsumptionForwardLbpS == 0 && SandingSystemType == SandingSystemTypes.Steam)
+            {
+                TrackSanderSteamConsumptionForwardLbpS = 300f / 3600f; // Default value - 300lbs/hr
+            }
+
+            if (TrackSanderSteamConsumptionReverseLbpS == 0 && SandingSystemType == SandingSystemTypes.Steam)
+            {
+                TrackSanderSteamConsumptionReverseLbpS = 300f / 3600f; // Default value - 300lbs/hr
+            }
+
+
             base.Initialize();
             if (DynamicBrakeBlendingEnabled) airPipeSystem = BrakeSystem as AirSinglePipe;
 
@@ -1849,20 +1911,20 @@ namespace Orts.Simulation.RollingStocks
                 float maxCylPressurePSI = airPipeSystem.GetMaxCylPressurePSI();
                 float target = airPipeSystem.AutoCylPressurePSI * airPipeSystem.RelayValveRatio / maxCylPressurePSI;
 
-                    if (DynamicBrakeBlendingForceMatch)
-                    {
-                        float diff = target * FrictionBrakeBlendingMaxForceN - DynamicBrakeForceN;
-                        float threshold = 100;
+                if (DynamicBrakeBlendingForceMatch)
+                {
+                    float diff = target * FrictionBrakeBlendingMaxForceN - DynamicBrakeForceN;
+                    float threshold = 100;
                     if (diff > threshold && DynamicBrakePercent < 100)
                         DynamicBrakeBlendingPercent = Math.Min(DynamicBrakePercent + 100 * elapsedClockSeconds, 100);
                     else if (diff < -threshold && DynamicBrakePercent > 1)
                         DynamicBrakeBlendingPercent = Math.Max(DynamicBrakePercent - 100 * elapsedClockSeconds, 1);
-                    }
-                    else
-                    {
-                    DynamicBrakeBlendingPercent = target * 100;
-                    }
                 }
+                else
+                {
+                    DynamicBrakeBlendingPercent = target * 100;
+                }
+            }
             else
             {
                 DynamicBrakeBlendingPercent = -1;
@@ -1985,7 +2047,7 @@ namespace Orts.Simulation.RollingStocks
 
             // Cruise Control
             CruiseControl?.Update(elapsedClockSeconds);
- 
+
             if (DynamicBrakePercent >= 0 && ThrottlePercent <= 0)
             {
                 if (DynamicBrakeCommandStartTime == null)
@@ -2011,7 +2073,10 @@ namespace Orts.Simulation.RollingStocks
             }
 
             // TODO  this is a wild simplification for electric and diesel electric
-            UpdateTractiveForce(elapsedClockSeconds, ThrottlePercent / 100f, AbsSpeedMpS, AbsWheelSpeedMpS);
+            if (EngineType == EngineTypes.Diesel || EngineType == EngineTypes.Electric)
+            {
+                UpdateTractiveForce(elapsedClockSeconds, ThrottlePercent / 100f, AbsSpeedMpS, AbsWheelSpeedMpS);
+            }
 
             foreach (MultiPositionController mpc in MultiPositionControllers)
             {
@@ -2271,18 +2336,18 @@ namespace Orts.Simulation.RollingStocks
             if (IsLeadLocomotive() && TrainBrakeController != null && TrainBrakeController.TrainDynamicBrakeIntervention > 0)
             {
                 LocalDynamicBrakePercent = TrainBrakeController.TrainDynamicBrakeIntervention * 100;
-                    }
+            }
             if (DynamicBrakeController != null && DynamicBrakeIntervention >= 0)
-                {
+            {
                 if (DynamicBrake || !DynamicBrakeControllerSetupLock)
-                    {
-                        DynamicBrakeController.Update(elapsedClockSeconds);
+                {
+                    DynamicBrakeController.Update(elapsedClockSeconds);
                     DynamicBrakeIntervention = DynamicBrakeController.CurrentValue;
-                    }
-                    else
-                    {
+                }
+                else
+                {
                     DynamicBrakeIntervention = 0;
-                    }
+                }
                 LocalDynamicBrakePercent = Math.Max(DynamicBrakeIntervention * 100, LocalDynamicBrakePercent);
             }
             if (IsLeadLocomotive()) DynamicBrakePercent = LocalDynamicBrakePercent;
@@ -2398,7 +2463,7 @@ namespace Orts.Simulation.RollingStocks
                 AverageForceN = w * AverageForceN + (1 - w) * TractiveForceN;
             }
 
-            ApplyDirectionToTractiveForce();
+            ApplyDirectionToTractiveForce(ref TractiveForceN, 0);
 
             // Calculate the total tractive force for the locomotive - ie Traction + Dynamic Braking force.
             // Note typically only one of the above will only ever be non-zero at the one time.
@@ -2453,21 +2518,21 @@ namespace Orts.Simulation.RollingStocks
         /// <summary>
         /// This function applies a sign to the motive force as a function of the direction of the train.
         /// </summary>
-        protected virtual void ApplyDirectionToTractiveForce()
+        protected virtual void ApplyDirectionToTractiveForce(ref float tractiveForceN, int numberofengine = 0 )
         {
             if (Train.IsPlayerDriven)
             {
                 switch (Direction)
                 {
                     case Direction.Forward:
-                        //MotiveForceN *= 1;     //Not necessary
+                        //tractiveForceN *= 1;     //Not necessary
                         break;
                     case Direction.Reverse:
-                        TractiveForceN *= -1;
+                        tractiveForceN *= -1;
                         break;
                     case Direction.N:
                     default:
-                        TractiveForceN *= 0;
+                        tractiveForceN *= 0;
                         break;
                 }
             }
@@ -2476,7 +2541,7 @@ namespace Orts.Simulation.RollingStocks
                 switch (Direction)
                 {
                     case Direction.Reverse:
-                        TractiveForceN *= -1;
+                        tractiveForceN *= -1;
                         break;
                     default:
                         break;
@@ -2500,17 +2565,18 @@ namespace Orts.Simulation.RollingStocks
                 if (AdvancedAdhesionModel)
                 {
                     // Wheelslip
-                    if (WheelSlip)
+                    if (HuDIsWheelSlip)
                     {
                         if (WheelslipState != Wheelslip.Occurring)
                         {
                             WheelslipState = Wheelslip.Occurring;
                             Simulator.Confirmer.Warning(CabControl.Wheelslip, CabSetting.On);
+                            Trace.TraceInformation("Display Wheelslip#1 - CarID {0} WheelSlip {1}", CarID, HuDIsWheelSlip);
                         }
                     }
                     else
                     {
-                        if (WheelSlipWarning)
+                        if (HuDIsWheelSlipWarninq)
                         {
                             if (WheelslipState != Wheelslip.Warning)
                             {
@@ -2534,6 +2600,7 @@ namespace Orts.Simulation.RollingStocks
                     {
                         WheelslipState = Wheelslip.Occurring;
                         Simulator.Confirmer.Warning(CabControl.Wheelslip, CabSetting.On);
+                        Trace.TraceInformation("Display Wheelslip#2");
                     }
                     if ((!WheelSlip) && (WheelslipState != Wheelslip.None))
                     {
@@ -2681,11 +2748,20 @@ namespace Orts.Simulation.RollingStocks
             if (MainResPressurePSI < CompressorRestartPressurePSI && LocomotivePowerSupply.AuxiliaryPowerSupplyState == PowerSupplyState.PowerOn && !CompressorIsOn)
             {
                 SignalEvent(Event.CompressorOn);
-                foreach (var car in Train.Cars)
+                foreach (List<TrainCar> locoGroup in Train.LocoGroups)
                 {
-                    if (car is MSTSLocomotive loco && loco.RemoteControlGroup == 0 && loco.LocomotivePowerSupply.AuxiliaryPowerSupplyOn && !loco.CompressorIsOn && loco.CompressorIsMUControlled)
+                    // Synchronize compressor between coupled locomotives
+                    if (locoGroup.Contains(this as TrainCar))
                     {
+                        foreach (TrainCar locoCar in locoGroup)
+                            if (locoCar is MSTSLocomotive loco && loco.LocomotivePowerSupply.AuxiliaryPowerSupplyOn && !loco.CompressorIsOn)
                         loco.SignalEvent(Event.CompressorOn);
+                    }
+                    else if (CompressorIsMUControlled) // Synchronize compressor between remote groups if configured to do so
+                    {
+                        foreach (TrainCar remoteLocoCar in locoGroup)
+                            if (remoteLocoCar is MSTSLocomotive remoteLoco && remoteLoco.LocomotivePowerSupply.AuxiliaryPowerSupplyOn && !remoteLoco.CompressorIsOn && remoteLoco.CompressorIsMUControlled)
+                                remoteLoco.SignalEvent(Event.CompressorOn);
                     }
                 }
             }
@@ -2794,16 +2870,11 @@ namespace Orts.Simulation.RollingStocks
             {
                 WheelSlip = LocomotiveAxles.IsWheelSlip;
                 WheelSlipWarning = LocomotiveAxles.IsWheelSlipWarning;
+                HuDIsWheelSlip = LocomotiveAxles.HuDIsWheelSlip;
+                HuDIsWheelSlipWarninq = LocomotiveAxles.HuDIsWheelSlipWarning;
             }
-            
-            // This enables steam locomotives to have different speeds for driven and non-driven wheels.
-            if (EngineType == EngineTypes.Steam && SteamEngineType != MSTSSteamLocomotive.SteamEngineTypes.Geared)
-            {
-                WheelSpeedSlipMpS = (float)LocomotiveAxles[0].AxleSpeedMpS;
-                WheelSpeedMpS = SpeedMpS;
-            }
-            else WheelSpeedMpS = (float)LocomotiveAxles[0].AxleSpeedMpS;
 
+            WheelSpeedMpS = (float)LocomotiveAxles[0].AxleSpeedMpS;
         }
 
         public void SimpleAdhesion()
@@ -3205,6 +3276,7 @@ namespace Orts.Simulation.RollingStocks
 
             if (Sander && AbsSpeedMpS < SanderSpeedOfMpS)  // If sander switch is on, and not blocked by speed, adjust parameters
             {
+                // Calculate sand consumption for sander
                 if (CurrentTrackSandBoxCapacityM3 > 0.0) // if sand still in sandbox then sanding is available
                 {
                     // Calculate consumption of sand, and drop in sand box level
@@ -3217,11 +3289,27 @@ namespace Orts.Simulation.RollingStocks
                     }
                 }
 
+                // Calculate steam, air or gravity consumption for different sander modes
+                if (SandingSystemType == SandingSystemTypes.Steam)
+                {
+                    if (Direction == Direction.Reverse)
+                    {
+                        SandingSteamUsageLBpS = TrackSanderSteamConsumptionReverseLbpS;
+                    }
+                    else
+                    {
+                        SandingSteamUsageLBpS = TrackSanderSteamConsumptionForwardLbpS;
+                    }
+
+                }
+                else
+                {
           // Calculate air consumption and change in main air reservoir pressure
                 float ActualAirConsumptionM3pS = pS.FrompM(TrackSanderAirComsumptionM3pS) * elapsedClockSeconds;
-                float SanderPressureDiffPSI = ActualAirConsumptionM3pS / Me3.ToFt3(MainResVolumeM3) ;
+                    float SanderPressureDiffPSI = ActualAirConsumptionM3pS / Me3.ToFt3(MainResVolumeM3);
                 MainResPressurePSI -= SanderPressureDiffPSI;
                 MainResPressurePSI = MathHelper.Clamp(MainResPressurePSI, 0.001f, MaxMainResPressurePSI);
+            }
             }
 
         }
@@ -5467,6 +5555,32 @@ namespace Orts.Simulation.RollingStocks
                         }
                         break;
                     }
+                case CABViewControlTypes.ORTS_TRAIN_AIR_FLOW_METER:
+                    {
+                        switch (cvc.Units)
+                        {
+                            case CABViewControlUnits.CUBIC_FT_MIN:
+                                data = this.Train.TotalBrakePipeFlowM3pS * 35.3147f * 60.0f;
+                                break;
+
+                            case CABViewControlUnits.LITRES_S:
+                            case CABViewControlUnits.LITERS_S:
+                                data = this.Train.TotalBrakePipeFlowM3pS * 1000.0f;
+                                break;
+
+                            case CABViewControlUnits.LITRES_MIN:
+                            case CABViewControlUnits.LITERS_MIN:
+                                data = this.Train.TotalBrakePipeFlowM3pS * 1000.0f * 60.0f;
+                                break;
+
+                            case CABViewControlUnits.CUBIC_M_S:
+                            default:
+                                data = this.Train.TotalBrakePipeFlowM3pS;
+                                break;
+
+                        }
+                        break;
+                    }
                 case CABViewControlTypes.FRICTION_BRAKING:
                     {
                         data = (BrakeSystem == null) ? 0.0f : BrakeSystem.GetCylPressurePSI();
@@ -5584,9 +5698,9 @@ namespace Orts.Simulation.RollingStocks
                                 if (activeloco.DieselEngines[0] != null)
                                 {
                                     if (activeloco.AdvancedAdhesionModel && Train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING)
-                                        data = activeloco.WheelSlipWarning ? 1 : 0;
+                                        data = activeloco.HuDIsWheelSlipWarninq ? 1 : 0;
                                     else
-                                        data = activeloco.WheelSlip ? 1 : 0;
+                                        data = activeloco.HuDIsWheelSlip ? 1 : 0;
 
                                 }
                             }
@@ -5594,9 +5708,9 @@ namespace Orts.Simulation.RollingStocks
                         else
                         {
                             if (AdvancedAdhesionModel && Train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING)
-                                data = WheelSlipWarning ? 1 : 0;
+                                data = HuDIsWheelSlipWarninq ? 1 : 0;
                             else
-                                data = WheelSlip ? 1 : 0;
+                                data = HuDIsWheelSlip ? 1 : 0;
                         }
                         break;
                     }

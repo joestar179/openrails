@@ -53,6 +53,7 @@ namespace Orts.Viewer3D.Popups
         internal static Texture2D BrakeHoseLastDis;
         internal static Texture2D Coupler;
         internal static Texture2D CouplerFront;
+        internal static Texture2D CouplerNotAvailable;
         internal static Texture2D CouplerRear;
         internal static Texture2D Empty;
         internal static Texture2D ETSconnected;
@@ -187,6 +188,7 @@ namespace Orts.Viewer3D.Popups
                 Coupler = SharedTextureManager.Get(Owner.Viewer.RenderProcess.GraphicsDevice, System.IO.Path.Combine(Owner.Viewer.ContentPath, "TrainOperationsCoupler.png"));//-
                 CouplerFront = SharedTextureManager.Get(Owner.Viewer.RenderProcess.GraphicsDevice, System.IO.Path.Combine(Owner.Viewer.ContentPath, "TrainOperationsCouplerFront.png"));
                 CouplerRear = SharedTextureManager.Get(Owner.Viewer.RenderProcess.GraphicsDevice, System.IO.Path.Combine(Owner.Viewer.ContentPath, "TrainOperationsCouplerRear.png"));
+                CouplerNotAvailable = SharedTextureManager.Get(Owner.Viewer.RenderProcess.GraphicsDevice, System.IO.Path.Combine(Owner.Viewer.ContentPath, "TrainOperationsCouplerNotAvailable.png"));
 
                 Empty = SharedTextureManager.Get(Owner.Viewer.RenderProcess.GraphicsDevice, System.IO.Path.Combine(Owner.Viewer.ContentPath, "TrainOperationsEmpty.png"));
 
@@ -504,6 +506,7 @@ namespace Orts.Viewer3D.Popups
             {
                 var trainCarViewer = Owner.Viewer.TrainCarOperationsViewerWindow;
                 var carOperations = Owner.Viewer.CarOperationsWindow;
+                var trainCarWebpage = Owner.Viewer.TrainCarOperationsWebpage;
 
                 trainCarViewer.TrainCarOperationsChanged = !trainCarViewer.Visible && trainCarViewer.TrainCarOperationsChanged ? false : trainCarViewer.TrainCarOperationsChanged;
 
@@ -577,7 +580,7 @@ namespace Orts.Viewer3D.Popups
                     carOperations.CarOperationChanged = carOperations.Visible && carOperations.CarOperationChanged;
                 }
 
-                if (CarPosition != trainCarViewer.CarPosition && Owner.Viewer.TrainCarOperationsWebpage.Connections > 0)
+                if (trainCarWebpage != null && CarPosition != trainCarViewer.CarPosition && trainCarWebpage.Connections > 0)
                 {
                     // Required to scroll the main window from the web version
                     UpdateTrainCarOperation = true;
@@ -685,7 +688,8 @@ namespace Orts.Viewer3D.Popups
         {
             Viewer = viewer;
             First = car == Viewer.PlayerTrain.Cars.First();
-            Texture = First ? CouplerFront : Coupler;
+            var isTender = car.WagonType == MSTSWagon.WagonTypes.Tender;
+            Texture = First ? CouplerFront : isTender ? CouplerNotAvailable : Coupler;
             Source = new Rectangle(0, 0, size, size);
         }
     }

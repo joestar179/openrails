@@ -56,6 +56,7 @@ namespace ORTS
             this.panelDetails = new System.Windows.Forms.Panel();
             this.panel1 = new System.Windows.Forms.Panel();
             this.buttonDocuments = new System.Windows.Forms.Button();
+            this.buttonDownloadContent = new System.Windows.Forms.Button();
             this.label25 = new System.Windows.Forms.Label();
             this.radioButtonModeActivity = new System.Windows.Forms.RadioButton();
             this.radioButtonModeTimetable = new System.Windows.Forms.RadioButton();
@@ -100,16 +101,19 @@ namespace ORTS
             this.contextMenuStripTools = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.linkLabelChangeLog = new System.Windows.Forms.LinkLabel();
             this.contextMenuStripDocuments = new System.Windows.Forms.ContextMenuStrip(this.components);
-            this.pbNotifications = new System.Windows.Forms.PictureBox();
+            this.pbNotificationsNone = new System.Windows.Forms.PictureBox();
             this.pictureBoxLogo = new System.Windows.Forms.PictureBox();
+            this.pbNotificationsSome = new System.Windows.Forms.PictureBox();
+            this.lblNotificationCount = new System.Windows.Forms.Label();
             this.groupBox1.SuspendLayout();
             this.groupBox3.SuspendLayout();
             this.panel1.SuspendLayout();
             this.panelModeActivity.SuspendLayout();
             this.panelModeTimetable.SuspendLayout();
             this.contextMenuStripTools.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.pbNotifications)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.pbNotificationsNone)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBoxLogo)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.pbNotificationsSome)).BeginInit();
             this.SuspendLayout();
             // 
             // buttonStart
@@ -127,7 +131,7 @@ namespace ORTS
             this.labelLogo.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.labelLogo.Font = new System.Drawing.Font("Arial", 18F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.labelLogo.ForeColor = System.Drawing.Color.Gray;
-            this.labelLogo.Location = new System.Drawing.Point(82, 472);
+            this.labelLogo.Location = new System.Drawing.Point(96, 472);
             this.labelLogo.Name = "labelLogo";
             this.labelLogo.Size = new System.Drawing.Size(224, 64);
             this.labelLogo.TabIndex = 11;
@@ -148,7 +152,7 @@ namespace ORTS
             this.checkBoxWarnings.Location = new System.Drawing.Point(109, 48);
             this.checkBoxWarnings.Name = "checkBoxWarnings";
             this.checkBoxWarnings.Size = new System.Drawing.Size(64, 17);
-            this.checkBoxWarnings.TabIndex = 1;
+            this.checkBoxWarnings.TabIndex = 4;
             this.checkBoxWarnings.Text = "Logging";
             this.checkBoxWarnings.UseVisualStyleBackColor = true;
             // 
@@ -157,7 +161,7 @@ namespace ORTS
             this.buttonOptions.Location = new System.Drawing.Point(109, 19);
             this.buttonOptions.Name = "buttonOptions";
             this.buttonOptions.Size = new System.Drawing.Size(75, 23);
-            this.buttonOptions.TabIndex = 0;
+            this.buttonOptions.TabIndex = 3;
             this.buttonOptions.Text = "Options";
             this.buttonOptions.Click += new System.EventHandler(this.buttonOptions_Click);
             // 
@@ -173,10 +177,10 @@ namespace ORTS
             // 
             // buttonTools
             // 
-            this.buttonTools.Location = new System.Drawing.Point(3, 19);
+            this.buttonTools.Location = new System.Drawing.Point(3, 48);
             this.buttonTools.Name = "buttonTools";
             this.buttonTools.Size = new System.Drawing.Size(100, 23);
-            this.buttonTools.TabIndex = 19;
+            this.buttonTools.TabIndex = 1;
             this.buttonTools.Text = "Tools ▼";
             this.buttonTools.Click += new System.EventHandler(this.buttonTools_Click);
             // 
@@ -354,6 +358,7 @@ namespace ORTS
             // 
             this.panel1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.panel1.Controls.Add(this.buttonDocuments);
+            this.panel1.Controls.Add(this.buttonDownloadContent);
             this.panel1.Controls.Add(this.buttonOptions);
             this.panel1.Controls.Add(this.checkBoxWarnings);
             this.panel1.Controls.Add(this.buttonTools);
@@ -364,13 +369,22 @@ namespace ORTS
             // 
             // buttonDocuments
             // 
-            this.buttonDocuments.Location = new System.Drawing.Point(3, 48);
+            this.buttonDocuments.Location = new System.Drawing.Point(3, 79);
             this.buttonDocuments.Name = "buttonDocuments";
             this.buttonDocuments.Size = new System.Drawing.Size(100, 23);
-            this.buttonDocuments.TabIndex = 22;
+            this.buttonDocuments.TabIndex = 2;
             this.buttonDocuments.Text = "Documents ▼";
             this.buttonDocuments.UseVisualStyleBackColor = true;
             this.buttonDocuments.Click += new System.EventHandler(this.buttonDocuments_Click);
+            // 
+            // buttonDownloadContent
+            // 
+            this.buttonDownloadContent.Location = new System.Drawing.Point(3, 19);
+            this.buttonDownloadContent.Name = "buttonDownloadContent";
+            this.buttonDownloadContent.Size = new System.Drawing.Size(100, 23);
+            this.buttonDownloadContent.TabIndex = 0;
+            this.buttonDownloadContent.Text = "Content";
+            this.buttonDownloadContent.Click += new System.EventHandler(this.buttonDownloadContent_Click);
             // 
             // label25
             // 
@@ -845,13 +859,11 @@ namespace ORTS
             // 
             // linkLabelUpdate
             // 
-            this.linkLabelUpdate.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.linkLabelUpdate.ImageAlign = System.Drawing.ContentAlignment.TopLeft;
-            this.linkLabelUpdate.Location = new System.Drawing.Point(457, 9);
+            this.linkLabelUpdate.Location = new System.Drawing.Point(400, 9);
             this.linkLabelUpdate.Name = "linkLabelUpdate";
             this.linkLabelUpdate.Size = new System.Drawing.Size(200, 16);
             this.linkLabelUpdate.TabIndex = 37;
-            this.linkLabelUpdate.TextAlign = System.Drawing.ContentAlignment.TopRight;
             this.linkLabelUpdate.UseMnemonic = false;
             this.linkLabelUpdate.Visible = false;
             this.linkLabelUpdate.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.linkLabelUpdate_LinkClicked);
@@ -875,7 +887,7 @@ namespace ORTS
             // 
             this.linkLabelChangeLog.Location = new System.Drawing.Point(299, 9);
             this.linkLabelChangeLog.Name = "linkLabelChangeLog";
-            this.linkLabelChangeLog.Size = new System.Drawing.Size(272, 16);
+            this.linkLabelChangeLog.Size = new System.Drawing.Size(100, 16);
             this.linkLabelChangeLog.TabIndex = 39;
             this.linkLabelChangeLog.TabStop = true;
             this.linkLabelChangeLog.Text = "What\'s new?";
@@ -889,16 +901,16 @@ namespace ORTS
             this.contextMenuStripDocuments.Name = "contextMenuStripDocuments";
             this.contextMenuStripDocuments.Size = new System.Drawing.Size(61, 4);
             // 
-            // pbNotifications
+            // pbNotificationsNone
             // 
-            this.pbNotifications.Image = global::ORTS.Properties.Resources.chat_icon_no_message_transparent;
-            this.pbNotifications.InitialImage = ((System.Drawing.Image)(resources.GetObject("pbNotifications.InitialImage")));
-            this.pbNotifications.Location = new System.Drawing.Point(805, 0);
-            this.pbNotifications.Name = "pbNotifications";
-            this.pbNotifications.Size = new System.Drawing.Size(37, 31);
-            this.pbNotifications.TabIndex = 40;
-            this.pbNotifications.TabStop = false;
-            this.pbNotifications.Click += new System.EventHandler(this.pbNotifications_Click);
+            this.pbNotificationsNone.Image = global::ORTS.Properties.Resources.chat_icon_no_message_transparent;
+            this.pbNotificationsNone.InitialImage = ((System.Drawing.Image)(resources.GetObject("pbNotificationsNone.InitialImage")));
+            this.pbNotificationsNone.Location = new System.Drawing.Point(805, 0);
+            this.pbNotificationsNone.Name = "pbNotificationsNone";
+            this.pbNotificationsNone.Size = new System.Drawing.Size(37, 31);
+            this.pbNotificationsNone.TabIndex = 40;
+            this.pbNotificationsNone.TabStop = false;
+            this.pbNotificationsNone.Click += new System.EventHandler(this.pbNotificationsNone_Click);
             // 
             // pictureBoxLogo
             // 
@@ -911,12 +923,38 @@ namespace ORTS
             this.pictureBoxLogo.TabIndex = 5;
             this.pictureBoxLogo.TabStop = false;
             // 
+            // pbNotificationsSome
+            // 
+            this.pbNotificationsSome.BackColor = System.Drawing.Color.Transparent;
+            this.pbNotificationsSome.Image = global::ORTS.Properties.Resources.chat_icon_new_message_transparent;
+            this.pbNotificationsSome.Location = new System.Drawing.Point(805, 0);
+            this.pbNotificationsSome.Name = "pbNotificationsSome";
+            this.pbNotificationsSome.Size = new System.Drawing.Size(37, 31);
+            this.pbNotificationsSome.TabIndex = 41;
+            this.pbNotificationsSome.TabStop = false;
+            this.pbNotificationsSome.Click += new System.EventHandler(this.pbNotificationsSome_Click);
+            // 
+            // lblNotificationCount
+            // 
+            this.lblNotificationCount.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(234)))), ((int)(((byte)(0)))), ((int)(((byte)(6)))));
+            this.lblNotificationCount.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblNotificationCount.ForeColor = System.Drawing.Color.White;
+            this.lblNotificationCount.Location = new System.Drawing.Point(827, 3);
+            this.lblNotificationCount.Name = "lblNotificationCount";
+            this.lblNotificationCount.Size = new System.Drawing.Size(8, 8);
+            this.lblNotificationCount.TabIndex = 42;
+            this.lblNotificationCount.Text = "1";
+            this.lblNotificationCount.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.lblNotificationCount.Click += new System.EventHandler(this.lblNotificationCount_Click);
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(854, 548);
-            this.Controls.Add(this.pbNotifications);
+            this.Controls.Add(this.lblNotificationCount);
+            this.Controls.Add(this.pbNotificationsSome);
+            this.Controls.Add(this.pbNotificationsNone);
             this.Controls.Add(this.linkLabelChangeLog);
             this.Controls.Add(this.panelModeTimetable);
             this.Controls.Add(this.panelModeActivity);
@@ -952,8 +990,9 @@ namespace ORTS
             this.panelModeTimetable.ResumeLayout(false);
             this.panelModeTimetable.PerformLayout();
             this.contextMenuStripTools.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)(this.pbNotifications)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.pbNotificationsNone)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBoxLogo)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.pbNotificationsSome)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -968,8 +1007,8 @@ namespace ORTS
         private System.Windows.Forms.Button buttonOptions;
         private System.Windows.Forms.Button buttonResume;
         private System.Windows.Forms.Button buttonTools;
-        private System.Windows.Forms.ComboBox comboBoxFolder;
-        private System.Windows.Forms.ComboBox comboBoxRoute;
+        public System.Windows.Forms.ComboBox comboBoxFolder;
+        public System.Windows.Forms.ComboBox comboBoxRoute;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Label label14;
         private System.Windows.Forms.Label label13;
@@ -981,26 +1020,26 @@ namespace ORTS
         private System.Windows.Forms.Panel panelDetails;
         private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.Label label25;
-        private System.Windows.Forms.RadioButton radioButtonModeActivity;
+        public System.Windows.Forms.RadioButton radioButtonModeActivity;
         private System.Windows.Forms.RadioButton radioButtonModeTimetable;
         private System.Windows.Forms.Panel panelModeActivity;
         private System.Windows.Forms.Label label3;
-        private System.Windows.Forms.ComboBox comboBoxActivity;
+        public System.Windows.Forms.ComboBox comboBoxActivity;
         private System.Windows.Forms.Label label4;
-        private System.Windows.Forms.ComboBox comboBoxLocomotive;
-        private System.Windows.Forms.ComboBox comboBoxConsist;
+        public System.Windows.Forms.ComboBox comboBoxLocomotive;
+        public System.Windows.Forms.ComboBox comboBoxConsist;
         private System.Windows.Forms.Label label5;
         private System.Windows.Forms.Label label6;
-        private System.Windows.Forms.ComboBox comboBoxStartAt;
+        public System.Windows.Forms.ComboBox comboBoxStartAt;
         private System.Windows.Forms.Label label7;
-        private System.Windows.Forms.ComboBox comboBoxHeadTo;
+        public System.Windows.Forms.ComboBox comboBoxHeadTo;
         private System.Windows.Forms.Label label11;
         private System.Windows.Forms.Label label9;
-        private System.Windows.Forms.ComboBox comboBoxStartTime;
+        public System.Windows.Forms.ComboBox comboBoxStartTime;
         private System.Windows.Forms.ComboBox comboBoxDuration;
-        private System.Windows.Forms.ComboBox comboBoxStartWeather;
+        public System.Windows.Forms.ComboBox comboBoxStartWeather;
         private System.Windows.Forms.Label label12;
-        private System.Windows.Forms.ComboBox comboBoxStartSeason;
+        public System.Windows.Forms.ComboBox comboBoxStartSeason;
         private System.Windows.Forms.Label label10;
         private System.Windows.Forms.ComboBox comboBoxDifficulty;
         private System.Windows.Forms.Label label8;
@@ -1023,12 +1062,15 @@ namespace ORTS
         private System.Windows.Forms.LinkLabel linkLabelChangeLog;
         private System.Windows.Forms.Button buttonDocuments;
         private System.Windows.Forms.ContextMenuStrip contextMenuStripDocuments;
+        private System.Windows.Forms.Button buttonDownloadContent;
         private System.Windows.Forms.Button buttonResumeMP;
         private System.Windows.Forms.RadioButton radioButtonMPServer;
         private System.Windows.Forms.RadioButton radioButtonMPClient;
         private System.Windows.Forms.Button buttonStartMP;
         private System.Windows.Forms.Label labelTimetableWeatherFile;
         private System.Windows.Forms.ComboBox comboBoxTimetableWeatherFile;
-        private System.Windows.Forms.PictureBox pbNotifications;
+        private System.Windows.Forms.PictureBox pbNotificationsNone;
+        private System.Windows.Forms.PictureBox pbNotificationsSome;
+        private System.Windows.Forms.Label lblNotificationCount;
     }
 }
