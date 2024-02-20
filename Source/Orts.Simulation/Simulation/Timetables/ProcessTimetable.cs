@@ -636,6 +636,10 @@ namespace Orts.Simulation.Timetables
             string clockmultinfo = (firstclockmultRow >= 0 && firstclockmultColumn >= 0) ?
                 fileContents.Strings[firstclockmultRow][firstclockmultColumn] : Path.GetFileNameWithoutExtension(fileContents.FilePath);
             Trace.TraceWarning("clock multiplier string: {0}", clockmultinfo);
+            if (clockmultinfo == null)
+            {
+                clockmultinfo = "10";
+            }
             TTTrain.clockmult = Int32.Parse(clockmultinfo);
             Trace.TraceWarning("clock multiplier integer: {0}", TTTrain.clockmult);
 
@@ -2848,6 +2852,7 @@ namespace Orts.Simulation.Timetables
                         outTrain.AITrainDirectionForward = true;
                         outTrain.StartTime = DisposeDetails.StableInfo.Stable_outtime;
                         outTrain.ActivateTime = DisposeDetails.StableInfo.Stable_outtime;
+//                        outTrain.NoPantoSwitchOnReverse = DisposeDetails.StableInfo.Stable_outNoPantoSwitchOnReverse; //joe179star autopilot
                         if (String.IsNullOrEmpty(DisposeDetails.StableInfo.Stable_name))
                         {
                             outTrain.Name = String.Concat("SO_", TTTrain.Number.ToString("0000"));
@@ -2901,6 +2906,7 @@ namespace Orts.Simulation.Timetables
                             inTrain.AITrainDirectionForward = true;
                             inTrain.StartTime = DisposeDetails.StableInfo.Stable_intime;
                             inTrain.ActivateTime = DisposeDetails.StableInfo.Stable_intime;
+ //                           inTrain.NoPantoSwitchOnReverse = DisposeDetails.StableInfo.Stable_inNoPantoSwitchOnReverse; //joe179star autopilot
                             inTrain.Name = String.Concat("SI_", finalForms.ToString("0000"));
                             inTrain.FormedOf = outTrain.Number;
                             inTrain.FormedOfType = DisposeDetails.FormType; // Set forms or triggered as defined in stable
@@ -3054,7 +3060,10 @@ namespace Orts.Simulation.Timetables
                         formedTrain.SpeedSettings.restrictedSet = true;
                         formedTrain.ProcessSpeedSettings();
                     }
-
+                    formedTrain.Closeup = disposeDetails.RunRoundCloseup; //joe179star autopilot 3 rows
+                    formedTrain.ForceReversal = disposeDetails.RunRoundForceReversal;
+//                    formedTrain.NoPantoSwitchOnReverse = disposeDetails.RunRoundNoPantoSwitchOnReverse;
+                    
                     formedTrain.AttachDetails = new AttachInfo(rrtrain);
                     trainList.Add(formedTrain);
 
@@ -3708,8 +3717,10 @@ namespace Orts.Simulation.Timetables
             {
                 public string Stable_outpath;
                 public int? Stable_outtime;
+                public bool Stable_outNoPantoSwitchOnReverse; //joe179star autopilot
                 public string Stable_inpath;
                 public int? Stable_intime;
+                public bool Stable_inNoPantoSwitchOnReverse; //joe179star autopilot
                 public string Stable_name;
             }
 
@@ -3724,6 +3735,9 @@ namespace Orts.Simulation.Timetables
             public bool RunRound;
             public string RunRoundPath;
             public int? RunRoundTime;
+            public bool RunRoundCloseup; //joe179star autopilot 3 lines
+            public bool RunRoundForceReversal;
+            public bool RunRoundNoPantoSwitchOnReverse;
 
             public enum RunRoundPosition
             {
@@ -3779,6 +3793,21 @@ namespace Orts.Simulation.Timetables
                                     TimeSpan RRSpan;
                                     TimeSpan.TryParse(formedTrainQualifiers.QualifierValues[0], out RRSpan);
                                     RunRoundTime = Convert.ToInt32(RRSpan.TotalSeconds);
+                                }
+
+                                if (String.Compare(formedTrainQualifiers.QualifierName, "rrcloseup") == 0)
+                                {
+                                    RunRoundCloseup = true;
+                                }
+
+                                if (String.Compare(formedTrainQualifiers.QualifierName, "rrforcereversal") == 0)
+                                {
+                                    RunRoundForceReversal = true;
+                                }
+
+                                if (String.Compare(formedTrainQualifiers.QualifierName, "rrreverse_nopantoswitch") == 0)
+                                {
+                                    RunRoundNoPantoSwitchOnReverse = true;
                                 }
 
                                 if (String.Compare(formedTrainQualifiers.QualifierName, "setstop") == 0)
@@ -3861,6 +3890,10 @@ namespace Orts.Simulation.Timetables
                                     StableInfo.Stable_outtime = Convert.ToInt32(outtime.TotalSeconds);
                                     break;
 
+                                case "out_reverse_nopantoswitch": //joe179star autopilot
+                                    StableInfo.Stable_outNoPantoSwitchOnReverse = true;
+                                    break;
+
                                 case "in_path":
                                     StableInfo.Stable_inpath = String.Copy(stableQualifier.QualifierValues[0]);
                                     break;
@@ -3869,6 +3902,10 @@ namespace Orts.Simulation.Timetables
                                     TimeSpan intime;
                                     TimeSpan.TryParse(stableQualifier.QualifierValues[0], out intime);
                                     StableInfo.Stable_intime = Convert.ToInt32(intime.TotalSeconds);
+                                    break;
+
+                                case "in_reverse_nopantoswitch": //joe179star autopilot
+                                    StableInfo.Stable_inNoPantoSwitchOnReverse = true;
                                     break;
 
                                 case "forms":
@@ -3908,6 +3945,20 @@ namespace Orts.Simulation.Timetables
                                     RunRoundTime = Convert.ToInt32(RRSpan.TotalSeconds);
                                     break;
 
+                                    //joe179star autopilot start
+                                    case "rrcloseup":
+                                    RunRoundCloseup = true;
+                                    break;
+                                    
+                                    case "rrforcereversal":
+                                    RunRoundForceReversal = true;
+                                    break;
+
+                                    case "rrreverse_nopantoswitch":
+                                    RunRoundNoPantoSwitchOnReverse = true;
+                                    break;
+                                    //joe179star autopilot end
+                                    
                                 case "callon":
                                     CallOn = true;
                                     break;

@@ -42,6 +42,8 @@ using Orts.Simulation.AIs;
 using Orts.Simulation.Physics;
 using Orts.Simulation.RollingStocks;
 using Orts.Simulation.Signalling;
+using Orts.Simulation.RollingStocks.SubSystems; //joe179star autopilot
+using Orts.Simulation.RollingStocks.SubSystems.Brakes.MSTS; //joe179star autopilot
 using ORTS.Common;
 using Event = Orts.Common.Event;
 
@@ -584,8 +586,10 @@ namespace Orts.Simulation.Timetables
             outf.Write(Efficiency);
             outf.Write(MaxVelocityA);
             outf.Write(UncondAttach);
-            outf.Write(doorCloseAdvance);
-            outf.Write(doorOpenDelay);
+            //           outf.Write(doorCloseAdvance);
+            //           outf.Write(doorOpenDelay);
+            outf.Write(DoorCloseTimer); // joe179star autopilot 2 l
+            outf.Write(DoorOpenTimer);
             outf.Write(ApproachTriggerSet);
             // Dummy for level crossing horn pattern
             outf.Write(-1);
@@ -2389,7 +2393,8 @@ namespace Orts.Simulation.Timetables
                 LeadLocomotiveIndex = otherTrain.LeadLocomotiveIndex;
 
                 // Copy other train speed if not restricted for either train
-                if (!otherTrain.SpeedSettings.restrictedSet && !SpeedSettings.restrictedSet)
+                //               if (!otherTrain.SpeedSettings.restrictedSet && !SpeedSettings.restrictedSet)
+                if (!otherTrain.SpeedSettings.restrictedSet && !SpeedSettings.restrictedSet || TrainMaxSpeedMpS == 0) //joe179star autopilot
                 {
                     TrainMaxSpeedMpS = otherTrain.TrainMaxSpeedMpS;
                 }
@@ -3536,6 +3541,8 @@ namespace Orts.Simulation.Timetables
             int actualdepart = thisStation.ActualDepart;
             int presentTime2 = presentTime % (24 * 3600); // joe179star
 
+            int remaining = 999; //joe179star autopilot
+
             // No arrival / departure time set: update times
             if (thisStation.ActualStopType == StationStop.STOPTYPE.STATION_STOP)
             {
@@ -3567,10 +3574,19 @@ namespace Orts.Simulation.Timetables
 
                 if (thisStation.ActualArrival < 0)
                 {
+                    RestdelayS = DelayedStartSettings.stationRestart.fixedPartS + (Simulator.Random.Next(DelayedStartSettings.stationRestart.randomPartS * 10) / 10f); //joe179star autopilot
                     thisStation.ActualArrival = presentTime2; //joe179star
-                    thisStation.CalculateDepartTime(presentTime2, this);
+                    //                   thisStation.CalculateDepartTime(presentTime2, this);
+                    var stopTime = thisStation.CalculateDepartTime(presentTime2, this);
                     actualdepart = thisStation.ActualDepart;
-
+                    // door management
+                    DoorOpenTimer = 4.0f;
+                    DoorCloseTimer = RestdelayS > 10.0f ? stopTime - 1 : stopTime + RestdelayS - 11.0f;
+                    if (DoorCloseTimer - 6 < DoorOpenTimer)
+                    {
+                        DoorOpenTimer = 0;
+                        DoorCloseTimer = MathHelper.Clamp(stopTime + RestdelayS - 3, stopTime - 3, stopTime - 1);
+                    }
 #if DEBUG_REPORTS
                     DateTime baseDT = new DateTime();
                     DateTime arrTime = baseDT.AddSeconds(presentTime2);
@@ -3597,8 +3613,51 @@ namespace Orts.Simulation.Timetables
 #endif
                 }
 
-                // Check for activation of other train
-                ActivateTriggeredTrain(TriggerActivationType.StationStop, thisStation.PlatformReference);
+                if (!IsFreight && Simulator.OpenDoorsInAITrains) //joe179star autopilot
+                {
+                    // door management
+                    TCRouteElement statRouteElement = ValidRoute[0][thisStation.RouteIndex];
+                    var frontIsFront = statRouteElement.Direction == 1 ^ thisStation.PlatformReference == thisStation.PlatformItem.PlatformFrontUiD;
+                     //                   var frontIsFront = thisStation.PlatformReference == thisStation.PlatformItem.PlatformFrontUiD;
+                    if (DoorOpenTimer > 0)
+                    {
+                        DoorOpenTimer -= elapsedClockSeconds;
+                        if (DoorOpenTimer < 0)
+                        {
+                            if (thisStation.PlatformItem.PlatformSide[0])
+                            {
+                                // Open left doors
+                                SetDoors(frontIsFront ? DoorSide.Right : DoorSide.Left, true);
+                            }
+                            if (thisStation.PlatformItem.PlatformSide[1])
+                            {
+                                // Open right doors
+                                SetDoors(frontIsFront ? DoorSide.Left : DoorSide.Right, true);
+                            }
+                        }
+                    }
+                    if (DoorCloseTimer > 0)
+                    {
+                        DoorCloseTimer -= elapsedClockSeconds;
+                        if (DoorCloseTimer < 0)
+                        {
+                            if (thisStation.PlatformItem.PlatformSide[0])
+                            {
+                                // Close left doors
+                                SetDoors(frontIsFront ? DoorSide.Right : DoorSide.Left, false);
+                            }
+                            if (thisStation.PlatformItem.PlatformSide[1])
+                            {
+                                // Close right doors
+                                SetDoors(frontIsFront ? DoorSide.Left : DoorSide.Right, false);
+                            }
+                        }
+                    }
+                }
+
+
+                                // Check for activation of other train
+                                ActivateTriggeredTrain(TriggerActivationType.StationStop, thisStation.PlatformReference);
 
                 // Set reference arrival for any waiting connections
                 if (thisStation.ConnectionsWaiting.Count > 0)
@@ -3651,6 +3710,17 @@ namespace Orts.Simulation.Timetables
                     // If required to wait: exit
                     if (needwait >= 0)
                     {
+                        // Stop the door close timer at the moment joe179star autopilot
+                        if (DoorCloseTimer > 0)
+                            DoorCloseTimer += elapsedClockSeconds;
+                            if (Autopilot)
+                            {
+                            TTTrain otherTrain = GetOtherTTTrainByNumber(needwait);
+                            DisplayMessage = Simulator.Catalog.GetString("Held for connecting train : ");
+                            DisplayMessage = String.Concat(DisplayMessage, otherTrain.Name);
+                            DisplayColor = Color.Orange;
+                            }
+                        remaining = 999;
                         return;
                     }
 
@@ -3658,6 +3728,9 @@ namespace Orts.Simulation.Timetables
                     {
                         actualdepart = CompareTimes.LatestTime(actualdepart, deptime);
                         thisStation.ActualDepart = actualdepart;
+                        // Reset door close timer joe179star autopilot
+                        var stopTime = actualdepart >= presentTime ? actualdepart - presentTime : actualdepart - presentTime + 3600;
+                        DoorCloseTimer = RestdelayS > 10.0f ? stopTime : stopTime + RestdelayS - 10.0f;
                     }
                 }
 
@@ -3667,6 +3740,23 @@ namespace Orts.Simulation.Timetables
                     // Waiting for train to attach: exit
                     if (NeedAttach[thisStation.PlatformReference].Count > 0)
                     {
+                        if (Autopilot)
+                        {
+                            int waitAttach = NeedAttach[thisStation.PlatformReference][0];
+                            TTTrain otherTrain = GetOtherTTTrainByNumber(waitAttach);
+                            DisplayMessage = Simulator.Catalog.GetString("Waiting for train to attach : ");
+                            if (otherTrain != null)
+                            {
+                                DisplayMessage = String.Concat(DisplayMessage, otherTrain.Name);
+                            }
+                            else
+                            {
+                                DisplayMessage = String.Concat(DisplayMessage, "train no. ");
+                                DisplayMessage = String.Concat(DisplayMessage, waitAttach.ToString());
+                            }
+                            DisplayColor = Color.Orange;
+                        }
+                        remaining = 999;
                         return;
                     }
                 }
@@ -3676,6 +3766,23 @@ namespace Orts.Simulation.Timetables
                     // Waiting for transfer: exit
                     if (NeedStationTransfer[thisStation.PlatformReference].Count > 0)
                     {
+                        if (Autopilot)
+                        {
+                            int waitTransfer = NeedStationTransfer[thisStation.PlatformReference][0];
+                            TTTrain otherTrain = GetOtherTTTrainByNumber(waitTransfer);
+                            DisplayMessage = Simulator.Catalog.GetString("Waiting for transfer with train : ");
+                            if (otherTrain != null)
+                            {
+                                DisplayMessage = String.Concat(DisplayMessage, otherTrain.Name);
+                            }
+                            else
+                            {
+                                DisplayMessage = String.Concat(DisplayMessage, "train no. ");
+                                DisplayMessage = String.Concat(DisplayMessage, waitTransfer.ToString());
+                            }
+                            DisplayColor = Color.Orange;
+                        }
+                        remaining = 999;
                         return;
                     }
                 }
@@ -3685,6 +3792,12 @@ namespace Orts.Simulation.Timetables
                     // Waiting for transfer: exit
                     if (NeedTrainTransfer.ContainsKey(occSection.Index))
                     {
+                        if (Autopilot)
+                        {
+                            DisplayMessage = Simulator.Catalog.GetString("Waiting for transfer");
+                            DisplayColor = Color.Orange;
+                        }
+                        remaining = 999;
                         return;
                     }
                 }
@@ -3703,6 +3816,8 @@ namespace Orts.Simulation.Timetables
             {
                 correctedTime = presentTime2 - (24 * 3600);
             }
+
+            remaining = actualdepart - correctedTime; //joe179star autopilot
 
             if (actualdepart > correctedTime)
             {
@@ -3725,6 +3840,19 @@ namespace Orts.Simulation.Timetables
                         nextSignal.requestClearSignal(ValidRoute[0], routedForward, 0, false, null); // For AI always use direction 0
                     }
                     thisStation.HoldSignal = false;
+                }
+                if (Autopilot)
+                {
+                    DisplayMessage = Simulator.Catalog.GetStringFmt("Passenger boarding completes in {0:D2}:{1:D2}",
+                    remaining / 60, remaining % 60);
+                    DisplayColor = remaining < 1 ? Color.LightGreen : remaining < 11 ? new Color(255, 255, 128) : Color.White;
+                    if (remaining <= 1)
+                    {
+                        if (DoorState(DoorSide.Right) == RollingStocks.SubSystems.DoorState.Open || DoorState(DoorSide.Right) == RollingStocks.SubSystems.DoorState.Opening)
+                            SetDoors(DoorSide.Right, false);
+                        if (DoorState(DoorSide.Left) == RollingStocks.SubSystems.DoorState.Open || DoorState(DoorSide.Left) == RollingStocks.SubSystems.DoorState.Opening)
+                            SetDoors(DoorSide.Left, false);
+                    }
                 }
                 return;
             }
@@ -3905,6 +4033,18 @@ namespace Orts.Simulation.Timetables
                 }
             }
 
+            //joe179star autopilot
+            remaining = actualdepart - correctedTime;
+            if (Autopilot)
+            {
+                DisplayColor = remaining < 1 ? Color.LightGreen : remaining < 11 ? new Color(255, 255, 128) : Color.White;
+                if (CheckEndOfRoutePositionTT())
+                {
+                    DisplayMessage = Simulator.Catalog.GetString("Passenger detraining completed. Train terminated.");
+   //                   return;
+                }
+            }
+
             // First, check state of signal
             if (thisStation.ExitSignal >= 0 && thisStation.HoldSignal)
             {
@@ -3926,7 +4066,8 @@ namespace Orts.Simulation.Timetables
             if (thisStation.ExitSignal >= 0 && NextSignalObject[0] != null && NextSignalObject[0].thisRef == thisStation.ExitSignal)
             {
                 MstsSignalAspect nextAspect = GetNextSignalAspect(0);
-                exitSignalStop = nextAspect == MstsSignalAspect.STOP && !thisStation.NoWaitSignal;
+                //               exitSignalStop = nextAspect == MstsSignalAspect.STOP && !thisStation.NoWaitSignal;
+                exitSignalStop = nextAspect == MstsSignalAspect.STOP && !thisStation.NoWaitSignal && NextSignalObject[0].hasPermission != SignalObject.Permission.Granted; //joe179star autopilot
             }
 
             // If not end of path, check if departure allowed
@@ -3937,6 +4078,8 @@ namespace Orts.Simulation.Timetables
                     TTAnalysisUpdateStationState2();
 #endif
 
+                if (Autopilot) //joe179star autopilot 2 lines
+                    DisplayMessage = Simulator.Catalog.GetString("Passenger boarding completed. Waiting for signal ahead to clear.");
                 return;  // Do not depart if exit signal at danger and waiting is required
             }
 
@@ -3952,7 +4095,9 @@ namespace Orts.Simulation.Timetables
                     thisStation.Passed = true;
 
                     MovementState = AI_MOVEMENT_STATE.STOPPED; // If state is still station_stop and ready and allowed to depart - change to stop to check action
-                    RestdelayS = DelayedStartSettings.stationRestart.fixedPartS + (Simulator.Random.Next(DelayedStartSettings.stationRestart.randomPartS * 10) / 10f);
+                                                               //                   RestdelayS = DelayedStartSettings.stationRestart.fixedPartS + (Simulator.Random.Next(DelayedStartSettings.stationRestart.randomPartS * 10) / 10f);
+                    if (Autopilot) //joe179star autopilot 2 lines
+                        DisplayMessage = "";
                     if (!endOfPath[0])
                     {
                         removeStation = true; // Set next station if not at end of path
@@ -4051,14 +4196,27 @@ namespace Orts.Simulation.Timetables
                 }
             }
 
+            if (Autopilot)
+            {
+                //                PopulateNextStationWindow();
+            }
+
             if (removeStation)
             {
+                PreviousStop = StationStops[0].CreateCopy(); //joe179star autopilot
                 StationStops.RemoveAt(0);
             }
 
             ResetActions(true);
         }
-
+        //================================================================================================//
+        /// <summary>
+        /// If autopiloted, generate strings for NextStationWindow
+        /// Override for AITrain class
+        /// <\summary>
+        public void PopulateNextStationWindow()
+        {
+        }
         //================================================================================================//
         /// <summary>
         /// Update for train in Braking state
@@ -4489,8 +4647,13 @@ namespace Orts.Simulation.Timetables
                 }            
                 else if (nextActionInfo.NextAction == AIActionItem.AI_ACTION_TYPE.REVERSAL)
                 {
-					// Check if approaching reversal point
-                    if (SpeedMpS < 0.05f) MovementState = AI_MOVEMENT_STATE.STOPPED;
+                    // Check if approaching reversal point
+                    //                   if (SpeedMpS < 0.05f) MovementState = AI_MOVEMENT_STATE.STOPPED;
+                    if (Math.Abs(SpeedMpS) < 0.05f) //joe179star autopilot
+                    {
+                        SpeedMpS = 0;
+                        MovementState = AI_MOVEMENT_STATE.STOPPED;
+                    }
                     RestdelayS = DelayedStartSettings.reverseAddedDelaySperM * Length;
                 }               
                 else if (nextActionInfo.RequiredSpeedMpS == 0)
@@ -5146,7 +5309,9 @@ namespace Orts.Simulation.Timetables
                         int? transferTrainIndex = null;
 
                         // Check attach details
-                        if (AttachDetails != null && AttachDetails.Valid && AttachDetails.ReadyToAttach && AttachDetails.AttachTrain == OtherTrain.OrgAINumber)
+                        //                       if (AttachDetails != null && AttachDetails.Valid && AttachDetails.ReadyToAttach && AttachDetails.AttachTrain == OtherTrain.OrgAINumber)
+                        if (AttachDetails != null && AttachDetails.Valid && AttachDetails.ReadyToAttach && (AttachDetails.AttachTrain == OtherTrain.OrgAINumber || //joe179star autopilot
+                       AttachDetails.AttachTrain == -1 && AttachDetails.AttachTrainName == OtherTrain.Name))
                         {
                             attachToTrain = true;
                         }
@@ -6439,6 +6604,11 @@ namespace Orts.Simulation.Timetables
             {
                 TTTrain attachTrain = GetOtherTTTrainByNumber(AttachDetails.AttachTrain);
 
+                if (attachTrain == null) //joe179star autopilot
+                {
+                    attachTrain = GetOtherTTTrainByName(AttachDetails.AttachTrainName.ToLower());
+                }
+
                 if (attachTrain != null)
                 {
                     // If in neutral, use forward position
@@ -6452,7 +6622,8 @@ namespace Orts.Simulation.Timetables
                         bool otherTrainFront = true;
                         bool readyToAttach = CheckCouplePosition(attachTrain, out thisTrainFront, out otherTrainFront);
 
-                        if (readyToAttach)
+                        //                       if (readyToAttach)
+                        if (readyToAttach && !(TCRoute.activeSubpath == 0 && Name.StartsWith("RR_"))) //joe179star autopilot
                         {
                             ProcessRouteEndTimetablePlayer();  // Perform end of route actions
                             TTCouple(attachTrain, thisTrainFront, otherTrainFront);
@@ -7264,7 +7435,7 @@ namespace Orts.Simulation.Timetables
                     lengthToGoM += thisSection.Length;
                 }
 
-                lengthToGoM -= 5.0f; // Keep save distance from end
+ //               lengthToGoM -= 5.0f; // Keep save distance from end joe179star autopilot
 
                 // If last section does not end at signal or next section is switch, set back overlap to keep clear of switch
                 // Only do so for last subroute to avoid falling short of reversal points
@@ -9218,7 +9389,8 @@ namespace Orts.Simulation.Timetables
                          Number.ToString() + " waiting to attach to " + AttachDetails.AttachTrainName + "\n");
                 }
             }
-            else
+            //           else
+            else if (!Autopilot)
             {
                 if (CheckTrain)
                 {
@@ -9276,6 +9448,12 @@ namespace Orts.Simulation.Timetables
 
                 if (validFormed)
                 {
+                    formedTrain.Autopilot = Autopilot; //joe179star autopilot
+                    if (formedTrain.Autopilot)
+                    {
+                        Simulator.OnPlayerTrainChanged(this, formedTrain);
+                        Simulator.PlayerLocomotive.Train = formedTrain;
+                    }
                     // Start new train
                     if (!autogenStart)
                     {
@@ -9416,7 +9594,8 @@ namespace Orts.Simulation.Timetables
                         {
                             return false;
                         }
-                        else if (AttachDetails != null && AttachDetails.Valid && AttachDetails.AttachTrain == otherTTTrain.OrgAINumber)
+                        //                        else if (AttachDetails != null && AttachDetails.Valid && AttachDetails.AttachTrain == otherTTTrain.OrgAINumber)
+                        else if (AttachDetails != null && AttachDetails.Valid && AttachDetails.AttachTrain == otherTTTrain.OrgAINumber && AttachDetails.AttachTrain != -1) // joe179star autopilot
                         {
                             return false;
                         }
@@ -9517,7 +9696,9 @@ namespace Orts.Simulation.Timetables
                 (EndAuthorityType[0] == END_AUTHORITY.END_OF_TRACK || EndAuthorityType[0] == END_AUTHORITY.END_OF_PATH || EndAuthorityType[0] == END_AUTHORITY.END_OF_AUTHORITY))
             {
                 // Front is in last route section
-                if (PresentPosition[0].RouteListIndex == lastValidRouteIndex)
+                //    if (PresentPosition[0].RouteListIndex == lastValidRouteIndex)
+                if (PresentPosition[0].RouteListIndex == lastValidRouteIndex &&
+                   (!TCRoute.ReversalInfo[TCRoute.activeSubpath].Valid && TCRoute.activeSubpath < TCRoute.TCRouteSubpaths.Count - 1)) //joe179star autopilot
                 {
                     endOfRoute = true;
                 }
@@ -9650,7 +9831,7 @@ namespace Orts.Simulation.Timetables
                     remLength += signalRef.TrackCircuitList[ValidRoute[0][Index].TCSectionIndex].Length;
                 }
 
-                if (remLength < 2 * standardOverlapM)
+               if (remLength < 2 * standardOverlapM)
                 {
                     endOfRoute = true;
                 }
@@ -10039,6 +10220,7 @@ namespace Orts.Simulation.Timetables
 
             // Check if at station
             CheckStationTask();
+            if (AtStation && !MayDepart) return true; //joe179star autopilot
             if (DetachPending) return true; // Do not check for further actions if player train detach is pending
 
             bool[] nextRoute = UpdateRouteActions(elapsedClockSeconds);
@@ -11611,6 +11793,7 @@ namespace Orts.Simulation.Timetables
                     {
                         needAttachFound = true;
                         trainList.Remove(OrgAINumber);
+
                         if (trainList.Count < 1)
                         {
                             attachTrain.NeedAttach.Remove(stationPlatformIndex);
@@ -11630,6 +11813,11 @@ namespace Orts.Simulation.Timetables
                     if (trainList.Contains(OrgAINumber))
                     {
                         trainList.Remove(OrgAINumber);
+                        needAttachFound = true;
+                    }
+                   else if (trainList.Contains(-1))
+                    {
+                        trainList.Remove(-1);
                         needAttachFound = true;
                     }
 
@@ -11736,6 +11924,11 @@ namespace Orts.Simulation.Timetables
             // Set anti-slip for all engines in AI train
             else
             {
+               if (Autopilot) //joe179star autopilot
+                {
+                    attachTrain.Simulator.OnPlayerTrainChanged(this, attachTrain);
+                    attachTrain.Simulator.PlayerLocomotive.Train = attachTrain;
+                }
                 foreach (TrainCar car in attachTrain.Cars)
                 {
                     if (car.WagonType == TrainCar.WagonTypes.Engine)
@@ -11746,6 +11939,8 @@ namespace Orts.Simulation.Timetables
                 }
             }
 
+            if (!attachTrain.Autopilot) // joe179star autopilot
+                attachTrain.Autopilot = Autopilot;
             // Remove original train
             RemoveTrain();
 
@@ -12452,6 +12647,8 @@ namespace Orts.Simulation.Timetables
             if (returnTrain == null)
             {
                 TTTrain playerTrain = Simulator.Trains.GetTrainByNumber(0) as TTTrain;
+                if (playerTrain == null) //joe179star autopilot
+                   return null;
                 if (playerTrain.OrgAINumber == reqNumber)
                 {
                     returnTrain = playerTrain;
@@ -12732,6 +12929,100 @@ namespace Orts.Simulation.Timetables
             File.AppendAllText(@"C:\temp\TTAnalysis.csv", sob.ToString() + "\n");
             ttanalysisreport = String.Empty;
         }
+
+
+        //================================================================================================//
+        /// <summary>
+        /// When in autopilot mode, switches to player control
+        /// </summary>
+        /// 
+        public override bool SwitchToPlayerControl()
+        {
+            bool success = false;
+            int leadLocomotiveIndex = -1;
+            var j = 0;
+            foreach (TrainCar car in Cars)
+            {
+                if (car is MSTSLocomotive)
+                {
+                    var loco = car as MSTSLocomotive;
+                    loco.LocomotiveAxles.InitializeMoving();
+                    loco.AntiSlip = false; // <CSComment> TODO Temporary patch until AntiSlip is re-implemented
+                }
+                if (car == Simulator.PlayerLocomotive) { leadLocomotiveIndex = j; }
+                    j++;
+            }
+    MSTSLocomotive lead = (MSTSLocomotive)Simulator.PlayerLocomotive;
+    EqualReservoirPressurePSIorInHg = Math.Min(EqualReservoirPressurePSIorInHg, lead.TrainBrakeController.MaxPressurePSI);
+            foreach (TrainCar car in Cars)
+                {
+                    if (car.BrakeSystem is AirSinglePipe)
+                        {
+        ((AirSinglePipe)car.BrakeSystem).NormalizePressures(lead.TrainBrakeController.MaxPressurePSI);
+                        }
+                }
+    LeadLocomotiveIndex = leadLocomotiveIndex;
+    Simulator.PlayerLocomotive.SwitchToPlayerControl();
+    TrainType = TRAINTYPE.PLAYER;
+    Autopilot = false;
+    SetupStationStopHandling();
+    //           Simulator.AI.AITrains.Remove(this);
+    success = true;
+            return success;
+        }
+
+        //================================================================================================//
+        /// <summary>
+        /// When in autopilot mode, switches to autopilot control
+        /// </summary>
+        /// 
+        public override bool SwitchToAutopilotControl()
+        {
+    bool success = false;
+                // MUDirection set within following method call
+    Simulator.PlayerLocomotive.SwitchToAutopilotControl();
+    LeadLocomotive = null;
+    LeadLocomotiveIndex = -1;
+    TrainType = TRAINTYPE.AI;
+    Autopilot = true;
+    InitializeBrakes();
+                foreach (TrainCar car in Cars)
+                    {
+                        if (car is MSTSLocomotive)
+                            {
+            var loco = car as MSTSLocomotive;
+                                if (loco.EngineBrakeController != null) loco.SetEngineBrakePercent(0);
+                                if (loco.DynamicBrakeController != null) loco.DynamicBrakePercent = -1;
+                            }
+                    }
+    
+                if (FirstCar != null)
+                   {
+        FirstCar.BrakeSystem.AISetPercent(AITrainBrakePercent);
+                        if (FirstCar is MSTSLocomotive)
+            ((MSTSLocomotive)FirstCar).SetTrainBrakePercent(AITrainBrakePercent);
+                        if (Simulator.PlayerLocomotive != null && FirstCar != Simulator.PlayerLocomotive)
+                            {
+            Simulator.PlayerLocomotive.BrakeSystem.AISetPercent(AITrainBrakePercent);
+            ((MSTSLocomotive)Simulator.PlayerLocomotive).SetTrainBrakePercent(AITrainBrakePercent);
+                            }
+                    }
+    ResetActions(true, true);
+                if (MovementState != AI_MOVEMENT_STATE.AI_STATIC)
+                    {
+                        if (Math.Abs(SpeedMpS) - 0.05 > 0 && !AtStation)
+            MovementState = AI_MOVEMENT_STATE.BRAKING;
+                        else
+                            {
+            MovementState = AtStation
+                                    ? AI_MOVEMENT_STATE.STATION_STOP
+                                    : AI_MOVEMENT_STATE.STOPPED;
+                            }
+                    }
+                //           Simulator.AI.AITrains.Add(this);
+    success = true;
+                return success;
+            }
     }
 
     //================================================================================================//
@@ -13538,16 +13829,99 @@ namespace Orts.Simulation.Timetables
                     else
                     {
                         // Handle AI train
-                        if (train.AI.Simulator.AutoGenDictionary != null && train.AI.Simulator.AutoGenDictionary.ContainsKey(newTrain.Number))
-                            train.AI.Simulator.AutoGenDictionary.Remove(newTrain.Number);
+                        //                       if (train.AI.Simulator.AutoGenDictionary != null && train.AI.Simulator.AutoGenDictionary.ContainsKey(newTrain.Number))
+                        //                           train.AI.Simulator.AutoGenDictionary.Remove(newTrain.Number);
 
-                        if (!ReverseDetachedTrain.HasValue)
+                        //                       if (!ReverseDetachedTrain.HasValue)
+                        // Handle AI train, but first manage the case of autopilot train
+                        if (train.Autopilot) //joe179star autopilot
                         {
-                            ReverseDetachedTrain = GetDetachReversalInfo(train, newTrain);
+                            //                            ReverseDetachedTrain = GetDetachReversalInfo(train, newTrain);
+                            bool detachablePower = CheckDetachedDriveablePower(train);
+                            bool keepPower = CheckKeepDriveablePower(train);
+                            
+                                                        // Detachable portion has no power, so detach immediately
+                                                        // If neither portion has power, keep remaining portion as autopilot train
+                            
+                            bool playerEngineInRemainingPortion = CheckPlayerLocomotivePortion(train);
+                            
+                                                        // Player engine is in remaining portion
+                                                        if (playerEngineInRemainingPortion || (!detachablePower && !keepPower))
+                                                            {
+                                                                if (!ReverseDetachedTrain.HasValue)
+                                                                    {
+                                    ReverseDetachedTrain = GetDetachReversalInfo(train, newTrain);
+                                                                    }
+                                int newLocoIndex = train.TTUncoupleBehind(newTrain, ReverseDetachedTrain.Value, train.LeadLocomotiveIndex, false);
+                                train.Simulator.Confirmer.Information(train.DetachUnits.ToString() + " units detached as train : " + newTrain.Name);
+                                Trace.TraceInformation("Detach : " + train.DetachUnits.ToString() + " units detached as train : " + newTrain.Name + "\n");
+                                train.DetachActive[1] = -1;
+                                
+                                                                // Set proper details for new train
+                                newTrain.SetFormedOccupied();
+                                newTrain.ControlMode = Train.TRAIN_CONTROL.INACTIVE;
+                                newTrain.MovementState = AITrain.AI_MOVEMENT_STATE.AI_STATIC;
+                                newTrain.SetupStationStopHandling();
+                                                            }
+                                                        // Keep portion has no power, so detach immediately and switch to new train
+                                                        else
+                                                            {
+                                                                if (!ReverseDetachedTrain.HasValue)
+                                                                    {
+                                    ReverseDetachedTrain = GetDetachReversalInfo(train, newTrain);
+                                                                    }
+                                int newLocoIndex = train.TTUncoupleBehind(newTrain, ReverseDetachedTrain.Value, -1, false);
+                                train.Simulator.Confirmer.Information(train.DetachUnits.ToString() + " units detached as train : " + newTrain.Name);
+                                Trace.TraceInformation("Detach : " + train.DetachUnits.ToString() + " units detached as train : " + newTrain.Name + "\n");
+                                train.DetachActive[1] = -1;
+                                
+                                                                // Set proper details for existing train
+                                train.TrainType = Train.TRAINTYPE.AI;
+                                train.LeadLocomotiveIndex = -1;
+                                var oldPlayer = train.AI.AITrains.Find(item => item.Number == 0);
+                                                                if (oldPlayer != null)
+                                    (oldPlayer.Number, newTrain.Number) = (newTrain.Number, oldPlayer.Number);
+                                                                else
+                                    newTrain.Number = 0;
+                                train.Simulator.Trains.Remove(train);
+                                train.AI.TrainsToRemoveFromAI.Add(train);
+                                train.AI.TrainsToAdd.Add(train);
+                                
+                                                                // Set proper details for new formed train
+                                newTrain.AI.aiListChanged = true;
+                                newTrain.SetFormedOccupied();
+                                newTrain.Autopilot = train.Autopilot;
+                                train.Autopilot = false;
+                                
+                                                                // Inform viewer about player train switch
+                                train.Simulator.OnPlayerTrainChanged(train, newTrain);
+                                train.Simulator.PlayerLocomotive.Train = newTrain;
+                                newTrain.SetupStationStopHandling();
+                                
+                                
+                                                                // Clear replay commands
+                                train.Simulator.Log.CommandList.Clear();
+                                
+                                                                // Display messages
+                                train.Simulator.Confirmer?.Information("Player switched to train : " + newTrain.Name);
+                                                            }
                         }
+                                                else
+                                                    {
+                                                        if (!ReverseDetachedTrain.HasValue)
+                                                            {
+                                ReverseDetachedTrain = GetDetachReversalInfo(train, newTrain);
+                                                            }
 
-                        bool newIsPlayer = newTrain.TrainType == Train.TRAINTYPE.INTENDED_PLAYER;
-                        newTrain.LeadLocomotiveIndex = train.TTUncoupleBehind(newTrain, ReverseDetachedTrain.Value, -1, newIsPlayer);
+                            //                            bool newIsPlayer = newTrain.TrainType == Train.TRAINTYPE.INTENDED_PLAYER;
+                            //                       newTrain.LeadLocomotiveIndex = train.TTUncoupleBehind(newTrain, ReverseDetachedTrain.Value, -1, newIsPlayer);
+                            bool newIsPlayer = newTrain.TrainType == Train.TRAINTYPE.INTENDED_PLAYER;
+                            newTrain.LeadLocomotiveIndex = train.TTUncoupleBehind(newTrain, ReverseDetachedTrain.Value, -1, newIsPlayer);
+
+                            
+                                                    }
+                                                if (train.AI.Simulator.AutoGenDictionary != null && train.AI.Simulator.AutoGenDictionary.ContainsKey(newTrain.Number))
+                            train.AI.Simulator.AutoGenDictionary.Remove(newTrain.Number);
                         train.DetachActive[1] = -1;
                     }
 
@@ -13868,14 +14242,49 @@ namespace Orts.Simulation.Timetables
             }
             return PlayerInRemainingPortion;
         }
-
         //================================================================================================//
         /// <summary>
-        /// Determine if detached train is to be reversed
+        /// Check if PlayerLocomotive is in remaining or detached portion joe179star autopilot
         /// </summary>
-        /// <param name="thisTrain"></param>
-        /// <param name="detachedTrain"></param>
+        /// <param name="train"></param>
         /// <returns></returns>
+        public bool CheckPlayerLocomotivePortion(TTTrain train)
+        {
+            bool PlayerInRemainingPortion = false;
+
+            // Detach at front - so check rear portion
+            if (train.DetachPosition)
+            {
+                for (int iCar = 0; iCar<(train.Cars.Count - train.DetachUnits) && !PlayerInRemainingPortion; iCar++)
+                {
+                    int actCar = train.Cars.Count - 1 - iCar;
+                    if (train.Cars[actCar] == train.Simulator.PlayerLocomotive)
+                    {
+                        PlayerInRemainingPortion = true;
+                    }
+                }
+            }
+            // Detach at rear - so check front portion
+            else
+                {
+                    for (int iCar = 0; iCar < (train.Cars.Count - train.DetachUnits) && !PlayerInRemainingPortion; iCar++)
+                        {
+                            if (train.Cars[iCar] == train.Simulator.PlayerLocomotive)
+                                {
+            PlayerInRemainingPortion = true;
+                                }
+                        }
+                }
+            return PlayerInRemainingPortion;
+        }
+
+        //================================================================================================//
+/// <summary>
+/// Determine if detached train is to be reversed
+/// </summary>
+/// <param name="thisTrain"></param>
+/// <param name="detachedTrain"></param>
+/// <returns></returns>
         public bool GetDetachReversalInfo(TTTrain thisTrain, TTTrain detachedTrain)
         {
             bool reversed = false;

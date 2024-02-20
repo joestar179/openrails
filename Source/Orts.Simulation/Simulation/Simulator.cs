@@ -16,6 +16,7 @@
 // along with Open Rails.  If not, see <http://www.gnu.org/licenses/>.
 
 using GNU.Gettext;
+using LibGit2Sharp;
 using Microsoft.Xna.Framework;
 using Orts.Common;
 using Orts.Common.Scripting;
@@ -534,6 +535,7 @@ namespace Orts.Simulation
                 if (!TrainDictionary.ContainsKey(playerTTTrain.Number)) TrainDictionary.Add(playerTTTrain.Number, playerTTTrain);
                 if (!NameDictionary.ContainsKey(playerTTTrain.Name.ToLower())) NameDictionary.Add(playerTTTrain.Name.ToLower(), playerTTTrain);
             }
+            IsAutopilotMode = true; //joe179star autopilot
         }
 
         public void StartViewer(string[] arguments, CancellationToken cancellation)
@@ -845,11 +847,13 @@ namespace Orts.Simulation
             // Represent conditions at the specified clock time.
             List<Train> movingTrains = new List<Train>();
 
-            if (PlayerLocomotive != null)
-            {
+//            if (PlayerLocomotive != null)
+              if (PlayerLocomotive != null && !PlayerLocomotive.Train.Autopilot) //joe179star autopilot
+                {
                 movingTrains.Add(PlayerLocomotive.Train);
                 if (PlayerLocomotive.Train.LeadLocomotive != null
-                    && PlayerLocomotive.Train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING
+//                    && PlayerLocomotive.Train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING
+                    && PlayerLocomotive.Train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING && !PlayerLocomotive.Train.Autopilot //joe179star autopilot
                     && String.Compare(PlayerLocomotive.Train.LeadLocomotive.CarID, PlayerLocomotive.CarID) != 0
                     && !MPManager.IsMultiPlayer())
                 {
@@ -876,13 +880,15 @@ namespace Orts.Simulation
                 {
                     try
                     {
-                        if (train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING)
+//                        if (train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING)
+                        if (train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING && !train.Autopilot) //joe179star autopilot
                             train.Update(elapsedClockSeconds, false);
                         else ((AITrain)train).AIUpdate(elapsedClockSeconds, ClockTime, false);
                     }
                     catch (Exception e) { Trace.TraceWarning(e.Message); }
                 }
-                else if (train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING)
+                //               else if (train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING)
+                else if (train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING) //joe179star autopilot
                 {
                     train.Update(elapsedClockSeconds, false);
                 }
@@ -1641,8 +1647,9 @@ namespace Orts.Simulation
             // find player train
             foreach (Train thisTrain in Trains)
             {
-                if (thisTrain.TrainType == Train.TRAINTYPE.PLAYER
-                    || thisTrain.TrainType == Train.TRAINTYPE.AI_PLAYERDRIVEN || thisTrain.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING)
+                //                if (thisTrain.TrainType == Train.TRAINTYPE.PLAYER
+                if (thisTrain.TrainType == Train.TRAINTYPE.PLAYER || thisTrain is TTTrain && thisTrain == Trains[0] //joe179star autopilot
+                                    || thisTrain.TrainType == Train.TRAINTYPE.AI_PLAYERDRIVEN || thisTrain.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING)
                 {
                     TrainDictionary.Add(thisTrain.Number, thisTrain);
                     NameDictionary.Add(thisTrain.Name, thisTrain);
@@ -1655,7 +1662,8 @@ namespace Orts.Simulation
                     {
                         thisTrain.RestoreManualMode();
                     }
-                    else if (thisTrain.TrainType == Train.TRAINTYPE.PLAYER)
+                    //                   else if (thisTrain.TrainType == Train.TRAINTYPE.PLAYER)
+                    else if (thisTrain.TrainType == Train.TRAINTYPE.PLAYER || thisTrain is TTTrain && thisTrain == Trains[0]) //joe179star autopilot
                     {
                         thisTrain.InitializeSignals(true);
                     }
@@ -1955,6 +1963,13 @@ namespace Orts.Simulation
                     var playerTrain = PlayerLocomotive.Train as AITrain;
                     if (playerTrain != null)
                     {
+                        if (TimetableMode && playerTrain.ControlMode == Train.TRAIN_CONTROL.MANUAL) //joe179star autopilot
+                        {
+                            Confirmer.Message(ConfirmLevel.Warning, Catalog.GetString("Train can't be switched if in manual mode"));
+                            TrainSwitcher.SuspendOldPlayer = false;
+                            TrainSwitcher.ClickedSelectedAsPlayer = false;
+                            return;
+                        }
                         if (playerTrain.ControlMode == Train.TRAIN_CONTROL.MANUAL) TrainSwitcher.SuspendOldPlayer = true; // force suspend state to avoid disappearing of train;
                         if (TrainSwitcher.SuspendOldPlayer &&
                             (playerTrain.SpeedMpS < -0.025 || playerTrain.SpeedMpS > 0.025 || playerTrain.PresentPosition[0].TCOffset != playerTrain.PreviousPosition[0].TCOffset))
@@ -1964,14 +1979,16 @@ namespace Orts.Simulation
                             TrainSwitcher.ClickedSelectedAsPlayer = false;
                             return;
                         }
-                        if (playerTrain.TrainType == Train.TRAINTYPE.AI_PLAYERDRIVEN)
+                        //                       if (playerTrain.TrainType == Train.TRAINTYPE.AI_PLAYERDRIVEN)
+                        if (playerTrain.TrainType == Train.TRAINTYPE.AI_PLAYERDRIVEN || !playerTrain.Autopilot) // joe179star autopilot
                         {
                             // it must be autopiloted first
                             playerTrain.SwitchToAutopilotControl();
                         }
                         // and now switch!
                         playerTrain.TrainType = Train.TRAINTYPE.AI;
-                        AI.AITrains.Add(playerTrain);
+                        //                       AI.AITrains.Add(playerTrain);
+                        playerTrain.Autopilot = false;  // joe179star autopilot
                         if (TrainSwitcher.SuspendOldPlayer)
                         {
                             playerTrain.MovementState = AITrain.AI_MOVEMENT_STATE.SUSPENDED;
@@ -2119,6 +2136,19 @@ namespace Orts.Simulation
                     PlayerLocomotive = SetPlayerLocomotive(pathlessPlayerTrain);
                     if (oldPlayerTrain != null) oldPlayerTrain.LeadLocomotiveIndex = -1;
                 }
+                if (TimetableMode) //joe179star autopilot
+                {
+                    // In timetable mode player train must have number 0
+                    //                    (((TTTrain)(PlayerLocomotive.Train)).OrgAINumber, ((TTTrain)oldPlayerTrain).Number) = (((TTTrain)oldPlayerTrain).Number, ((TTTrain)PlayerLocomotive.Train).Number);
+                    (PlayerLocomotive.Train.Number, oldPlayerTrain.Number) = (oldPlayerTrain.Number, PlayerLocomotive.Train.Number);
+                    var oldPlayerTrainIndex = Trains.IndexOf(oldPlayerTrain);
+                    var playerTrainIndex = Trains.IndexOf(PlayerLocomotive.Train);
+                    (Trains[oldPlayerTrainIndex], Trains[playerTrainIndex]) = (Trains[playerTrainIndex], Trains[oldPlayerTrainIndex]);
+                    var index = AI.AITrains.IndexOf(PlayerLocomotive.Train as AITrain);
+                    (AI.AITrains[0], AI.AITrains[index]) = (AI.AITrains[index], AI.AITrains[0]);
+                    AI.aiListChanged = true;
+                    PlayerLocomotive.Train.Autopilot = true;
+                }
                 playerSwitchOngoing = true;
                 if (MPManager.IsMultiPlayer())
                 {
@@ -2137,19 +2167,25 @@ namespace Orts.Simulation
         {
             if (PlayerLocomotive.Train.TrainType != Train.TRAINTYPE.STATIC)
             {
-                AI.AITrains.Remove(PlayerLocomotive.Train as AITrain);
+                //               AI.AITrains.Remove(PlayerLocomotive.Train as AITrain);
+                if (!TimetableMode)
+                    AI.AITrains.Remove(PlayerLocomotive.Train as AITrain); //joe179star autopilot
                 if ((PlayerLocomotive.Train as AITrain).MovementState == AITrain.AI_MOVEMENT_STATE.SUSPENDED)
                 {
                     PlayerLocomotive.Train.Reinitialize();
                     (PlayerLocomotive.Train as AITrain).MovementState = Math.Abs(PlayerLocomotive.Train.SpeedMpS) <= MaxStoppedMpS ?
                         AITrain.AI_MOVEMENT_STATE.INIT : AITrain.AI_MOVEMENT_STATE.BRAKING;
                 }
-                (PlayerLocomotive.Train as AITrain).SwitchToPlayerControl();
+                //               (PlayerLocomotive.Train as AITrain).SwitchToPlayerControl();
+                if (!TimetableMode)
+                    (PlayerLocomotive.Train as AITrain).SwitchToPlayerControl(); //joe179star autopilot
             }
             else
             {
                 PlayerLocomotive.Train.CreatePathlessPlayerTrain();
             }
+            var playerLocomotive = PlayerLocomotive as MSTSLocomotive; //joe179star autopilot 2 lines
+            playerLocomotive.UsingRearCab = (PlayerLocomotive.Flipped ^ PlayerLocomotive.Train.MUDirection == Direction.Reverse) && (playerLocomotive.HasRearCab || playerLocomotive.HasRear3DCab);
             OnPlayerLocomotiveChanged();
             playerSwitchOngoing = false;
             TrainSwitcher.ClickedSelectedAsPlayer = false;

@@ -26,6 +26,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Orts.Formats.Msts;
+using Orts.Simulation.AIs;
 using Orts.Simulation.Physics;
 using Orts.Simulation.RollingStocks;
 using Orts.Simulation.RollingStocks.SubSystems;
@@ -253,60 +254,47 @@ namespace Orts.Viewer3D
 
         bool UpdateState()
         {
-			Debug.Assert(Viewer.PlayerTrain.LeadLocomotive == Viewer.PlayerLocomotive ||Viewer.PlayerTrain.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING ||
+            Debug.Assert(Viewer.PlayerTrain.LeadLocomotive == Viewer.PlayerLocomotive || Viewer.PlayerTrain.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING || Viewer.PlayerTrain.Autopilot ||
                 Viewer.PlayerTrain.TrainType == Train.TRAINTYPE.REMOTE || Viewer.PlayerTrain.TrainType == Train.TRAINTYPE.STATIC, "PlayerTrain.LeadLocomotive must be PlayerLocomotive.");
-			var leadLocomotiveCar = Car.Train?.LeadLocomotive;
-            if (leadLocomotiveCar == null && Car.Train?.Cars[0] is MSTSLocomotive) // AI trains have no lead locomotive
-                leadLocomotiveCar = Car.Train.Cars[0];
-			var leadLocomotive = leadLocomotiveCar as MSTSLocomotive;
-
-            // There are a lot of conditions now! IgnoredConditions[] stores which conditions are ignored, allowing shortcutting of many of these calculations
-            // Should prevent some unneeded computation, but is a little messy. May revise in the future
+            var locomotive = Car.Train != null && Car.Train.IsActualPlayerTrain ? Viewer.PlayerLocomotive : null;
+            if (locomotive == null && Car.Train != null && Car.Train.TrainType == Train.TRAINTYPE.REMOTE && Car is MSTSLocomotive && (Car as MSTSLocomotive) == Car.Train.LeadLocomotive)
+                locomotive = Car.Train.LeadLocomotive;
+            var mstsLocomotive = locomotive as MSTSLocomotive;
 
             // Headlight
-			int newTrainHeadlight = !IgnoredConditions[0] ? (Car.Train != null ? Car.Train.TrainType != Train.TRAINTYPE.STATIC ? leadLocomotiveCar.Headlight : 0 : 0) : 0;
+            var newTrainHeadlight = locomotive != null ? locomotive.Headlight : Car.Train != null && Car.Train.TrainType != Train.TRAINTYPE.STATIC ? 2 : 0;
             // Unit
-            bool locomotiveFlipped = leadLocomotiveCar != null && leadLocomotiveCar.Flipped;
-            bool locomotiveReverseCab = leadLocomotive != null && leadLocomotive.UsingRearCab;
-            bool newCarIsReversed = Car.Flipped ^ locomotiveFlipped ^ locomotiveReverseCab;
-            bool newCarIsFirst = !IgnoredConditions[1] && Car.Train == null || (locomotiveFlipped ^ locomotiveReverseCab ? Car.Train.LastCar : Car.Train.FirstCar) == Car;
-            bool newCarIsLast = !IgnoredConditions[1] && Car.Train == null || (locomotiveFlipped ^ locomotiveReverseCab ? Car.Train.FirstCar : Car.Train.LastCar) == Car;
+            var locomotiveFlipped = locomotive != null && locomotive.Flipped;
+            var locomotiveReverseCab = mstsLocomotive != null && mstsLocomotive.UsingRearCab;
+            var newCarIsReversed = Car.Flipped ^ locomotiveFlipped ^ locomotiveReverseCab;
+            var newCarIsFirst = Car.Train == null || (locomotiveFlipped ^ locomotiveReverseCab ? Car.Train.LastCar : Car.Train.FirstCar) == Car;
+            var newCarIsLast = Car.Train == null || (locomotiveFlipped ^ locomotiveReverseCab ? Car.Train.FirstCar : Car.Train.LastCar) == Car;
             // Penalty
-			var newPenalty = !IgnoredConditions[2] && leadLocomotive != null && leadLocomotive.TrainBrakeController.EmergencyBraking;
+            var newPenalty = mstsLocomotive != null && mstsLocomotive.TrainBrakeController.EmergencyBraking;
             // Control
-            bool newCarIsPlayer = !IgnoredConditions[3] && Car.Train != null && (Car.Train == Viewer.PlayerTrain || Car.Train.TrainType == Train.TRAINTYPE.REMOTE);
+            var newCarIsPlayer = (Car.Train != null && Car.Train == Viewer.PlayerTrain) || (Car.Train != null && Car.Train.TrainType == Train.TRAINTYPE.REMOTE);
             // Service - if a player or AI train, then will considered to be in servie, loose consists will not be considered to be in service.
-            bool newCarInService = !IgnoredConditions[4] && Car.Train != null && (Car.Train == Viewer.PlayerTrain || Car.Train.TrainType == Train.TRAINTYPE.REMOTE || Car.Train.TrainType == Train.TRAINTYPE.AI);
+            var newCarInService = (Car.Train != null && Car.Train == Viewer.PlayerTrain) || (Car.Train != null && Car.Train.TrainType == Train.TRAINTYPE.REMOTE) || (Car.Train != null && Car.Train.TrainType == Train.TRAINTYPE.AI);
             // Time of day
             bool newIsDay = false;
-            if (!IgnoredConditions[5])
-            {
-                if (Viewer.Settings.UseMSTSEnv == false)
-                    newIsDay = Viewer.World.Sky.SolarDirection.Y > 0;
-                else
-                    newIsDay = Viewer.World.MSTSSky.mstsskysolarDirection.Y > 0;
-
-            }
+            if (Viewer.Settings.UseMSTSEnv == false)
+                newIsDay = Viewer.World.Sky.SolarDirection.Y > 0;
+            else
+                newIsDay = Viewer.World.MSTSSky.mstsskysolarDirection.Y > 0;
             // Weather
-            WeatherType newWeather = !IgnoredConditions[6] ? Viewer.Simulator.WeatherType : WeatherType.Clear;
+            var newWeather = Viewer.Simulator.WeatherType;
             // Coupling
-            bool newCarCoupledFront = !IgnoredConditions[7] && Car.Train != null && (Car.Train.Cars.Count > 1) && ((Car.Flipped ? Car.Train.LastCar : Car.Train.FirstCar) != Car);
-            bool newCarCoupledRear = !IgnoredConditions[7] && Car.Train != null && (Car.Train.Cars.Count > 1) && ((Car.Flipped ? Car.Train.FirstCar : Car.Train.LastCar) != Car);
+            var newCarCoupledFront = Car.Train != null && (Car.Train.Cars.Count > 1) && ((Car.Flipped ? Car.Train.LastCar : Car.Train.FirstCar) != Car);
+            var newCarCoupledRear = Car.Train != null && (Car.Train.Cars.Count > 1) && ((Car.Flipped ? Car.Train.FirstCar : Car.Train.LastCar) != Car);
             // Battery
-            bool newCarBatteryOn = !IgnoredConditions[8] && Car is MSTSWagon wagon ? wagon.PowerSupply?.BatteryState == PowerSupplyState.PowerOn : true;
-            // Friction brakes, activation force is arbitrary
-            bool newBrakeOn = !IgnoredConditions[9] && Car.BrakeForceN > 250.0f;
-            // Reverser: -1: reverse, 0: within 10% of neutral, 1: forwards. Automatically swaps if this car is reversed
-            int newReverserState = !IgnoredConditions[10] ? ((Car.Train.MUDirection == Direction.N || Math.Abs(Car.Train.MUReverserPercent) < 10.0f) ? 0 : 
-                Car.Train.MUDirection == Direction.Forward ? 1 : -1) * (Car.Flipped ? -1 : 1) : 0;
-            // Passenger doors
-            bool newLeftDoorOpen = !IgnoredConditions[11] && Car.Train.DoorState(DoorSide.Left) != DoorState.Closed;
-            bool newRightDoorOpen = !IgnoredConditions[11] && Car.Train.DoorState(DoorSide.Right) != DoorState.Closed;
-            // Horn and bell (for flashing ditch lights)
-            bool newHornOn = !IgnoredConditions[12] && leadLocomotive != null && leadLocomotive.HornRecent;
-            bool newBellOn = !IgnoredConditions[13] && leadLocomotive != null && leadLocomotive.BellRecent;
-            // Multiple unit configuration, -1: this loco is the lead loco, 0: this loco is not directly connected to the lead loco (distributed power), 1: this loco is directly connected to the lead loco
-            int newMU = !IgnoredConditions[14] ? (Car is MSTSLocomotive loco && leadLocomotive != null && loco.DPUnitID == leadLocomotive.DPUnitID ? loco == leadLocomotive ? -1 : 1 : 0) : 0;
+            var newCarBatteryOn = Car is MSTSWagon wagon ? wagon.PowerSupply?.BatteryState == PowerSupplyState.PowerOn : true;
+            // Train power (for AI trains only, for player train PowerOn is always assumed)
+            bool newPowerOn = Car.Train is AITrain AIt ? AIt.PowerState : true;
+
+            // Special Lights
+            // test change in special lights list
+
+            var specialLightsChanged = false;
 
             if (
                 (TrainHeadlight != newTrainHeadlight) ||
@@ -321,14 +309,9 @@ namespace Orts.Viewer3D
                 (CarCoupledFront != newCarCoupledFront) ||
                 (CarCoupledRear != newCarCoupledRear) ||
                 (CarBatteryOn != newCarBatteryOn) ||
-                (BrakeOn != newBrakeOn) ||
-                (ReverserState != newReverserState) ||
-                (LeftDoorOpen != newLeftDoorOpen) ||
-                (RightDoorOpen != newRightDoorOpen) ||
-                (HornOn != newHornOn) ||
-                (BellOn != newBellOn) ||
-                (MU != newMU)
-                )
+                (CarBatteryOn != newCarBatteryOn) ||
+ //               (TrainPowerOn != newPowerOn) ||
+                specialLightsChanged)
             {
                 TrainHeadlight = newTrainHeadlight;
                 CarIsReversed = newCarIsReversed;
@@ -342,13 +325,10 @@ namespace Orts.Viewer3D
                 CarCoupledFront = newCarCoupledFront;
                 CarCoupledRear = newCarCoupledRear;
                 CarBatteryOn = newCarBatteryOn;
-                BrakeOn = newBrakeOn;
-                ReverserState = newReverserState;
-                LeftDoorOpen = newLeftDoorOpen;
-                RightDoorOpen = newRightDoorOpen;
-                HornOn = newHornOn;
-                BellOn = newBellOn;
-                MU = newMU;
+ //               TrainPowerOn = newPowerOn;
+ //               SpecialLights = Car.SpecialLights;
+ //               SpecialLightsSelection.Clear();
+ //               SpecialLightsSelection.AddRange(Car.SpecialLightSelection);
 
 #if DEBUG_LIGHT_STATES
                 Console.WriteLine();

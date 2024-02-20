@@ -72,8 +72,10 @@ namespace Orts.Simulation.AIs
         public Service_Definition ServiceDefinition = null; // train's service definition in .act file
         public bool UncondAttach = false;                   // if false it states that train will unconditionally attach to a train on its path
 
-        public float doorOpenDelay = -1f;
-        public float doorCloseAdvance = -1f;
+        //       public float doorOpenDelay = -1f; joe179star Autopilot
+        //       public float doorCloseAdvance = -1f; joe179star Autopilot
+        public float DoorOpenTimer = -1f; //joe179star Autopilot
+        public float DoorCloseTimer = -1f; //joe179star Autopilot
         public AILevelCrossingHornPattern LevelCrossingHornPattern { get; set; }
         public bool ApproachTriggerSet = false;         // station approach trigger for AI trains has been set
 
@@ -245,11 +247,14 @@ namespace Orts.Simulation.AIs
             Efficiency = inf.ReadSingle();
             MaxVelocityA = inf.ReadSingle();
             UncondAttach = inf.ReadBoolean();
-            doorCloseAdvance = inf.ReadSingle();
-            doorOpenDelay = inf.ReadSingle();
-			ApproachTriggerSet = inf.ReadBoolean();
-            if (!Simulator.TimetableMode && doorOpenDelay <= 0 && doorCloseAdvance > 0 && Simulator.OpenDoorsInAITrains &&
-                MovementState == AI_MOVEMENT_STATE.STATION_STOP && StationStops.Count > 0)
+            //           doorCloseAdvance = inf.ReadSingle();
+            //           doorOpenDelay = inf.ReadSingle();
+            DoorCloseTimer = inf.ReadSingle(); //joe179star Autopilot
+            DoorOpenTimer = inf.ReadSingle(); //joe179star Autopilot
+            ApproachTriggerSet = inf.ReadBoolean();
+            //            if (!Simulator.TimetableMode && doorOpenDelay <= 0 && doorCloseAdvance > 0 && Simulator.OpenDoorsInAITrains &&
+            if (!Simulator.TimetableMode && DoorOpenTimer <= 0 && DoorCloseTimer > 0 && Simulator.OpenDoorsInAITrains && //joe179star Autopilot
+            MovementState == AI_MOVEMENT_STATE.STATION_STOP && StationStops.Count > 0)
             {
                 StationStop thisStation = StationStops[0];
                 var frontIsFront = thisStation.PlatformReference == thisStation.PlatformItem.PlatformFrontUiD;
@@ -339,9 +344,11 @@ namespace Orts.Simulation.AIs
             outf.Write(Efficiency);
             outf.Write(MaxVelocityA);
             outf.Write(UncondAttach);
-            outf.Write(doorCloseAdvance);
-            outf.Write(doorOpenDelay);
-            outf.Write(ApproachTriggerSet);
+            //           outf.Write(doorCloseAdvance);
+            //            outf.Write(doorOpenDelay);
+            outf.Write(DoorCloseTimer); // joe179star Autopilot
+            outf.Write(DoorOpenTimer); // joe179star Autopilot
+            outf.Write(ApproachTriggerSet); 
             if (LevelCrossingHornPattern != null)
             {
                 outf.Write(0);
@@ -704,7 +711,8 @@ namespace Orts.Simulation.AIs
                 SetReversalAction();
 
                 // Check if out of control - if so, remove
-                if (ControlMode == TRAIN_CONTROL.OUT_OF_CONTROL && TrainType != TRAINTYPE.AI_PLAYERHOSTING)
+                //               if (ControlMode == TRAIN_CONTROL.OUT_OF_CONTROL && TrainType != TRAINTYPE.AI_PLAYERHOSTING)
+                if (ControlMode == TRAIN_CONTROL.OUT_OF_CONTROL && !(TrainType == TRAINTYPE.AI_PLAYERHOSTING || Autopilot)) // joe179star Autopilot
                 {
                     Trace.TraceInformation("Train {0} ({1}) is removed for out of control, reason : {2}", Name, Number, OutOfControlReason.ToString());
                     RemoveTrain();
@@ -1855,13 +1863,19 @@ namespace Orts.Simulation.AIs
                     thisStation.ActualArrival = presentTime;
                     var stopTime = thisStation.CalculateDepartTime(presentTime, this);
                     actualdepart = thisStation.ActualDepart;
-                    doorOpenDelay = 4.0f;
-                    doorCloseAdvance = stopTime - 10.0f;
-                    if (PreUpdate) doorCloseAdvance -= 10;
-                    if (doorCloseAdvance - 6 < doorOpenDelay)
+                    //                    doorOpenDelay = 4.0f;
+                    //                    doorCloseAdvance = stopTime - 10.0f;
+                    //                    if (PreUpdate) doorCloseAdvance -= 10;
+                    //                    if (doorCloseAdvance - 6 < doorOpenDelay)
+                    DoorOpenTimer = 4.0f; // joe179star Autopilot 4 lines
+                    DoorCloseTimer = stopTime - 10.0f;
+                    if (PreUpdate) DoorCloseTimer -= 10;
+                    if (DoorCloseTimer - 6 < DoorOpenTimer)
                     {
-                        doorOpenDelay = 0;
-                        doorCloseAdvance = stopTime - 3;
+                        //                       doorOpenDelay = 0;
+                        //                       doorCloseAdvance = stopTime - 3;
+                        DoorOpenTimer = 0; //joe179star Autopilot 2 lines
+                        DoorCloseTimer = stopTime - 3;
                     }
 
 #if DEBUG_REPORTS
@@ -1891,10 +1905,14 @@ namespace Orts.Simulation.AIs
                     if (!IsFreight && Simulator.OpenDoorsInAITrains)
                     {
                         var frontIsFront = thisStation.PlatformReference == thisStation.PlatformItem.PlatformFrontUiD;
-                        if (doorOpenDelay > 0)
+                        //                       if (doorOpenDelay > 0)
+                        if (DoorOpenTimer > 0) // joe179star Autopilot
                         {
-                            doorOpenDelay -= elapsedClockSeconds;
-                            if (doorOpenDelay < 0)
+                            //                           doorOpenDelay -= elapsedClockSeconds;
+                            //                           if (doorOpenDelay < 0)
+ //                       if (DoorOpenTimer > 0) // joe179star Autopilot 2 lines
+                            DoorOpenTimer -= elapsedClockSeconds;
+                            if (DoorOpenTimer < 0)
                             {
                                 if (thisStation.PlatformItem.PlatformSide[0])
                                 {
@@ -1908,10 +1926,13 @@ namespace Orts.Simulation.AIs
                                 }
                             }
                         }
-                        if (doorCloseAdvance > 0)
+                        //                       if (doorCloseAdvance > 0)
+                        if (DoorCloseTimer > 0)
                         {
-                            doorCloseAdvance -= elapsedClockSeconds;
-                            if (doorCloseAdvance < 0)
+                            //                           doorCloseAdvance -= elapsedClockSeconds;
+                            //                           if (doorCloseAdvance < 0)
+                            DoorCloseTimer -= elapsedClockSeconds;
+                            if (DoorCloseTimer < 0)
                             {
                                 if (thisStation.PlatformItem.PlatformSide[0])
                                 {
@@ -3601,7 +3622,8 @@ namespace Orts.Simulation.AIs
             if (FirstCar != null)
             {
                 FirstCar.BrakeSystem.AISetPercent(AITrainBrakePercent);
-                if (TrainType == TRAINTYPE.AI_PLAYERHOSTING)
+                //                if (TrainType == TRAINTYPE.AI_PLAYERHOSTING)
+                if (TrainType == TRAINTYPE.AI_PLAYERHOSTING || Autopilot) //joe179star autopilot
                 {
                     if (FirstCar is MSTSLocomotive)
                         ((MSTSLocomotive)FirstCar).SetTrainBrakePercent(AITrainBrakePercent);
@@ -3622,7 +3644,8 @@ namespace Orts.Simulation.AIs
             if (FirstCar != null)
             {
                 FirstCar.BrakeSystem.AISetPercent(AITrainBrakePercent);
-                if (TrainType == TRAINTYPE.AI_PLAYERHOSTING)
+                //               if (TrainType == TRAINTYPE.AI_PLAYERHOSTING)
+                if (TrainType == TRAINTYPE.AI_PLAYERHOSTING || Autopilot) //joe179star autopilot
                 {
                     if (FirstCar is MSTSLocomotive)
                         ((MSTSLocomotive)FirstCar).SetTrainBrakePercent(AITrainBrakePercent);
@@ -3642,7 +3665,8 @@ namespace Orts.Simulation.AIs
             if (FirstCar != null)
             {
                 FirstCar.ThrottlePercent = AITrainThrottlePercent;
-                if (TrainType == TRAINTYPE.AI_PLAYERHOSTING)
+                //                if (TrainType == TRAINTYPE.AI_PLAYERHOSTING) joe179star autopilot
+                if (TrainType == TRAINTYPE.AI_PLAYERHOSTING || Autopilot)
                 {
                     if (FirstCar is MSTSLocomotive)
                     {
@@ -3743,7 +3767,8 @@ namespace Orts.Simulation.AIs
             {
                 FirstCar.ThrottlePercent = AITrainThrottlePercent;
                 FirstCar.BrakeSystem.AISetPercent(AITrainBrakePercent);
-                if (TrainType == TRAINTYPE.AI_PLAYERHOSTING)
+                //               if (TrainType == TRAINTYPE.AI_PLAYERHOSTING)
+                if (TrainType == TRAINTYPE.AI_PLAYERHOSTING || Autopilot) //joe179star autopilot
                 {
                     if (FirstCar is MSTSLocomotive)
                     {
@@ -4378,6 +4403,7 @@ namespace Orts.Simulation.AIs
                     (attachTrain as AITrain).SwitchToPlayerControl();
                     Simulator.OnPlayerLocomotiveChanged();
                     AI.AITrains.Add(this);
+                    AI.aiListChanged = true; //joe179star autopilot
                 }
                 else if (attachTrain is AITrain) RedefineAITriggers(attachTrain as AITrain);
                 if (!UncondAttach)
@@ -6182,7 +6208,8 @@ namespace Orts.Simulation.AIs
         /// When in autopilot mode, switches to player control
         /// </summary>
         /// 
-        public bool SwitchToPlayerControl()
+        //        public bool SwitchToPlayerControl()
+        public virtual bool SwitchToPlayerControl() //joe179star autopilot
         {
             bool success = false;
             int leadLocomotiveIndex = -1;
@@ -6221,10 +6248,11 @@ namespace Orts.Simulation.AIs
 
         //================================================================================================//
         /// <summary>
-        /// When in autopilot mode, switches to autopilot control
+        /// When in player mode, switches to autopilot control
         /// </summary>
         /// 
-        public bool SwitchToAutopilotControl()
+        //       public bool SwitchToAutopilotControl()
+        public virtual bool SwitchToAutopilotControl() //joe179star autopilot
         {
             bool success = false;
             // MUDirection set within following method call

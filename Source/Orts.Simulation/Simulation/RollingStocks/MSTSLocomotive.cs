@@ -5567,14 +5567,16 @@ namespace Orts.Simulation.RollingStocks
                 case CABViewControlTypes.THROTTLE:
                     {
                         if (CruiseControl != null && CruiseControl.SkipThrottleDisplay) break;
-                        data = GetThrottleHandleValue(Train.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING ? ThrottlePercent / 100f : LocalThrottlePercent / 100f);
+                        //                       data = GetThrottleHandleValue(Train.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING ? ThrottlePercent / 100f : LocalThrottlePercent / 100f);
+                        data = GetThrottleHandleValue((Train.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING || Train.Autopilot) ? ThrottlePercent / 100f : LocalThrottlePercent / 100f); //joe179star autopilot
                         break;
                     }
                 case CABViewControlTypes.THROTTLE_DISPLAY:
                 case CABViewControlTypes.CPH_DISPLAY:
                     {
                         if (CruiseControl != null && CruiseControl.SkipThrottleDisplay) break;
-                        data = Train.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING? ThrottlePercent / 100f : LocalThrottlePercent / 100f;
+                        //                        data = Train.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING? ThrottlePercent / 100f : LocalThrottlePercent / 100f;
+                        data = (Train.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING || Train.Autopilot) ? ThrottlePercent / 100f : LocalThrottlePercent / 100f; //joe179star autopilot
                         break;
                     }
                 case CABViewControlTypes.ENGINE_BRAKE:
@@ -5772,7 +5774,8 @@ namespace Orts.Simulation.RollingStocks
                                 var activeloco = ControlActiveLocomotive as MSTSDieselLocomotive;
                                 if (activeloco.DieselEngines[0] != null)
                                 {
-                                    if (activeloco.AdvancedAdhesionModel && Train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING)
+                                    //                                   if (activeloco.AdvancedAdhesionModel && Train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING)
+                                    if (activeloco.AdvancedAdhesionModel && Train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING && !Train.Autopilot) //joe179star autopilot
                                         data = activeloco.HuDIsWheelSlipWarninq ? 1 : 0;
                                     else
                                         data = activeloco.HuDIsWheelSlip ? 1 : 0;
@@ -5782,7 +5785,8 @@ namespace Orts.Simulation.RollingStocks
                         }
                         else
                         {
-                            if (AdvancedAdhesionModel && Train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING)
+                            //                          if (AdvancedAdhesionModel && Train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING)
+                            if (AdvancedAdhesionModel && Train.TrainType != Train.TRAINTYPE.AI_PLAYERHOSTING && !Train.Autopilot) //joe179star autopilot
                                 data = HuDIsWheelSlipWarninq ? 1 : 0;
                             else
                                 data = HuDIsWheelSlip ? 1 : 0;

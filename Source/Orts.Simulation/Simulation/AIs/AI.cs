@@ -139,6 +139,8 @@ namespace Orts.Simulation.AIs
 
             // Prerun trains
             PrerunAI(playerTrainOriginalTrain, playerTrainFormedOfType, playerTrain, cancellation);
+            if (playerTrain != null && (AITrains.Count == 0 || AITrains[0] != playerTrain)) //joe179star Autopilot
+            AITrains.Insert(0, playerTrain);
 
             ClockTime = clockTime;
             localTime = false;
@@ -170,7 +172,7 @@ namespace Orts.Simulation.AIs
                 {
                     // Timetable mode trains
                     TTTrain aiTrain = new TTTrain(Simulator, inf, this);
-                    if (aiTrain.TrainType != Train.TRAINTYPE.PLAYER) // Add to AITrains except when it is player train
+                    if (!(AITrains.Count > 0 && aiTrain.Number == AITrains[0].Number)) // Add to AITrains except when it is player train joe179star autopilot
                     {
                         AITrains.Add(aiTrain);
                     }
@@ -695,6 +697,7 @@ namespace Orts.Simulation.AIs
                     Simulator.StartReference.Remove(thisTrain.Number);
                     if (thisTrain.TrainType == Train.TRAINTYPE.AI_NOTSTARTED) thisTrain.TrainType = Train.TRAINTYPE.AI;
                     endPreRun = AddToWorldTT(thisTrain, newTrains);
+                    aiListChanged = true; //joe179star Autopilot
                     if (endPreRun) break;
                 }
             }
@@ -708,11 +711,13 @@ namespace Orts.Simulation.AIs
                     if (acttrain.MovementState != AITrain.AI_MOVEMENT_STATE.AI_STATIC && acttrain.TrainType != Train.TRAINTYPE.PLAYER)
                     {
                         activeTrains = true;
+                        aiListChanged = true; // joe179star Autopilot
                         break;
                     }
                     else if (acttrain.MovementState == AITrain.AI_MOVEMENT_STATE.AI_STATIC && actTTTrain.ActivateTime < clockTime)
                     {
                         activeTrains = true;
+                        aiListChanged = true; // joe179star Autopilot
                         break;
                     }
                 }
@@ -1316,14 +1321,22 @@ namespace Orts.Simulation.AIs
                 if (Simulator.NameDictionary.ContainsKey(train.Name.ToLower())) Simulator.NameDictionary.Remove(train.Name.ToLower());
                 Simulator.NameDictionary.Add(train.Name.ToLower(), train);
                 if (train.TrainType == Train.TRAINTYPE.PLAYER || train.TrainType == Train.TRAINTYPE.INTENDED_PLAYER)
+                { // joe179star Autopilot
+                    if (AITrains[0].TrainType == Train.TRAINTYPE.PLAYER) // joe179star Autopilot
+                        AITrains.RemoveAt(0); // joe179star Autopilot
+                        AITrains.Insert(0, train); // joe179star Autopilot
+                }   // joe179star Autopilot
+                else if (train.Number == 0) // joe179star Autopilot
                 {
                     AITrains.Insert(0, train);
+                    Simulator.Trains.Add(train); // joe179star Autopilot
                 }
                 else
                 {
                     AITrains.Add(train);
                     Simulator.Trains.Add(train);
                 }
+                aiListChanged = true; // joe179star Autopilot
             }
             TrainsToAdd.Clear();
         }

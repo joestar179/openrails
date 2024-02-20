@@ -585,7 +585,9 @@ namespace Orts.Viewer3D.Popups
             dbfevalActivityEnded = true;
 
             //If Autopilot control then update recorded time
-            if (!ldbfevalupdateautopilottime && owner.Viewer.PlayerLocomotive.Train.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING)
+            //           if (!ldbfevalupdateautopilottime && owner.Viewer.PlayerLocomotive.Train.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING)
+           if (!ldbfevalupdateautopilottime &&
+           (owner.Viewer.PlayerLocomotive.Train.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING || owner.Viewer.PlayerLocomotive.Train.Autopilot)) //joe179star autopilot
             {
                 Viewer.DbfEvalAutoPilotTimeS = Viewer.DbfEvalAutoPilotTimeS + (owner.Viewer.Simulator.ClockTime - Viewer.DbfEvalIniAutoPilotTimeS);
                 ldbfevalupdateautopilottime = true;
