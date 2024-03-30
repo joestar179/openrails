@@ -1393,7 +1393,7 @@ namespace Orts.Simulation.RollingStocks
         public override void SwitchToAutopilotControl()
         {
             SetDirection(Direction.Forward);
-            if (!LocomotivePowerSupply.MainPowerSupplyOn)
+            if (!LocomotivePowerSupply.MainPowerSupplyOn || !LocomotivePowerSupply.BatteryOn || !LocomotivePowerSupply.MasterKey.On)
             {
                 LocomotivePowerSupply.HandleEvent(PowerSupplyEvent.QuickPowerOn);
             }
