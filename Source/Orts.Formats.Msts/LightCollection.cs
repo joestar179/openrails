@@ -338,6 +338,8 @@ namespace Orts.Formats.Msts
     public class Light
     {
         public int Index;
+        public int ShapeIndex = -1;
+        public string ShapeHierarchy;
         public LightType Type;
         public bool Cycle;
         public float FadeIn;
@@ -369,12 +371,16 @@ namespace Orts.Formats.Msts
                     if (States.Count < count)
                         STFException.TraceWarning(stf, (count - States.Count).ToString() + " missing State(s)");
                 }),
+                new STFReader.TokenProcessor("shapeindex", ()=>{ ShapeIndex = stf.ReadIntBlock(null); }),
+                new STFReader.TokenProcessor("shapehierarchy", ()=>{ ShapeHierarchy = stf.ReadStringBlock(null).ToUpper(); }),
             });
         }
 
         public Light(Light light, bool reverse)
         {
             Index = light.Index;
+            ShapeIndex = light.ShapeIndex;
+            ShapeHierarchy = light.ShapeHierarchy;
             Type = light.Type;
             Cycle = light.Cycle;
             FadeIn = light.FadeIn;
@@ -396,6 +402,11 @@ namespace Orts.Formats.Msts
     {
         public List<Light> Lights = new List<Light>();
 
+        // Array of bools, one per type of condition in the same order as presented in the 'LightCondition' class
+        // A 'true' indicates all lights in this set ignore the corresponding condition, so we don't need to waste time thinking about it
+        // Remember to expand this if more conditions are added!
+        public bool[] IgnoredConditions = new bool[15];
+
         public LightCollection(STFReader stf)
         {
             stf.MustMatch("(");
@@ -410,6 +421,32 @@ namespace Orts.Formats.Msts
             foreach (var light in Lights.ToArray())
                 if (light.Type == LightType.Cone)
                     Lights.Add(new Light(light, true));
+
+            // Determine which, if any, conditions are ignored by all conditions of all lights
+            // Assume all conditions are ignored unless determined otherwise
+            for (int i = 0; i < IgnoredConditions.Length; i++)
+                IgnoredConditions[i] = true;
+            foreach (Light light in Lights)
+            {
+                foreach (LightCondition condition in light.Conditions)
+                {
+                    IgnoredConditions[0] &= condition.Headlight == LightHeadlightCondition.Ignore;
+                    IgnoredConditions[1] &= condition.Unit == LightUnitCondition.Ignore;
+                    IgnoredConditions[2] &= condition.Penalty == LightPenaltyCondition.Ignore;
+                    IgnoredConditions[3] &= condition.Control == LightControlCondition.Ignore;
+                    IgnoredConditions[4] &= condition.Service == LightServiceCondition.Ignore;
+                    IgnoredConditions[5] &= condition.TimeOfDay == LightTimeOfDayCondition.Ignore;
+                    IgnoredConditions[6] &= condition.Weather == LightWeatherCondition.Ignore;
+                    IgnoredConditions[7] &= condition.Coupling == LightCouplingCondition.Ignore;
+                    IgnoredConditions[8] &= condition.Battery == LightBatteryCondition.Ignore;
+                    IgnoredConditions[9] &= condition.Brake == LightBrakeCondition.Ignore;
+                    IgnoredConditions[10] &= condition.Reverser == LightReverserCondition.Ignore;
+                    IgnoredConditions[11] &= condition.Doors == LightDoorsCondition.Ignore;
+                    IgnoredConditions[12] &= condition.Horn == LightHornCondition.Ignore;
+                    IgnoredConditions[13] &= condition.Bell == LightBellCondition.Ignore;
+                    IgnoredConditions[14] &= condition.MU == LightMUCondition.Ignore;
+                }
+            }
         }
     }
 }

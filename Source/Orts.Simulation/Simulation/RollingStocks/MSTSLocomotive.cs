@@ -264,7 +264,7 @@ namespace Orts.Simulation.RollingStocks
         public float MaxTrackSanderSandConsumptionForwardM3pS;
         public float CurrentTrackSanderAirConsumptionM3pS;
         public float CurrentTrackSanderSandConsumptionM3pS;
-        public float CurrentTrackSandBoxCapacityM3; 
+        public float CurrentTrackSandBoxCapacityM3;
         public float MaxTrackSanderSandConsumptionReverseM3pS = 0;
         public float SandWeightKgpM3 = 1600; // One cubic metre of sand weighs about 1.54-1.78 tonnes. 
         public float MaxTrackSanderSteamConsumptionForwardLbpS;
@@ -445,6 +445,10 @@ namespace Orts.Simulation.RollingStocks
         public bool DoesBrakeCutPower { get; private set; }
         public float BrakeCutsPowerAtBrakeCylinderPressurePSI { get; private set; }
         public bool DoesHornTriggerBell { get; private set; }
+        public bool DPSyncTrainApplication { get; private set; }
+        public bool DPSyncTrainRelease { get; private set; }
+        public bool DPSyncEmergency { get; private set; }
+        public bool DPSyncIndependent { get; private set; } = true;
 
         protected const float DefaultCompressorRestartToMaxSysPressureDiff = 35;    // Used to check if difference between these two .eng parameters is correct, and to correct it
         protected const float DefaultMaxMainResToCompressorRestartPressureDiff = 10; // Used to check if difference between these two .eng parameters is correct, and to correct it
@@ -1143,6 +1147,19 @@ namespace Orts.Simulation.RollingStocks
                         }
                     }
                     break;
+                case "engine(ortsdpbrakesynchronization":
+                    var dpSyncModes = stf.ReadStringBlock("").ToLower().Replace(" ", "").Split(',');
+                    if (dpSyncModes.Contains("apply"))
+                        DPSyncTrainApplication = true;
+                    if (dpSyncModes.Contains("release"))
+                        DPSyncTrainRelease = true;
+                    if (dpSyncModes.Contains("emergency"))
+                        DPSyncEmergency = true;
+                    if (dpSyncModes.Contains("independent"))
+                        DPSyncIndependent = true;
+                    else // Independent synchronization is assumed to be enabled unless explicitly not enabled
+                        DPSyncIndependent = false;
+                    break;
                 case "engine(ortsdynamicblendingoverride": DynamicBrakeBlendingOverride = stf.ReadBoolBlock(false); break;
                 case "engine(ortsdynamicblendingforcematch": DynamicBrakeBlendingForceMatch = stf.ReadBoolBlock(false); break;
                 case "engine(vacuumbrakeshasvacuumpump": VacuumPumpFitted = stf.ReadBoolBlock(false); break;
@@ -1562,7 +1579,7 @@ namespace Orts.Simulation.RollingStocks
             {
                 CurrentTrackSandBoxCapacityM3 = MaxTrackSandBoxCapacityM3;
             }
-            
+
             // Ensure Drive Axles is set with a default value if user doesn't supply an OR value in ENG file
             if (LocoNumDrvAxles == 0)
             {
@@ -1701,7 +1718,8 @@ namespace Orts.Simulation.RollingStocks
                 // for airtwinpipe system, make sure that a value is set for it
                 if (MaximumMainReservoirPipePressurePSI == 0)
                 {
-                    MaximumMainReservoirPipePressurePSI = MaxMainResPressurePSI;
+                    // Add 5 psi to account for main res overcharging that might happen
+                    MaximumMainReservoirPipePressurePSI = MaxMainResPressurePSI + 5.0f;
                     if (Simulator.Settings.VerboseConfigurationMessages)
                     {
                         Trace.TraceInformation("AirBrakeMaxMainResPipePressure not set in ENG file, set to default pressure of {0}.", FormatStrings.FormatPressure(MaximumMainReservoirPipePressurePSI, PressureUnit.PSI, MainPressureUnit, true));
@@ -1999,9 +2017,6 @@ namespace Orts.Simulation.RollingStocks
 
             // Pass Gearbox commands
 
-
-
-
             // Note - at the moment there is only one GearBox Controller created, but a gearbox for each diesel engine is created. 
             // This code keeps all gearboxes in the locomotive aligned with the first engine and gearbox.
             if (gearloco != null && gearloco.DieselTransmissionType == MSTSDieselLocomotive.DieselTransmissionTypes.Mechanic && GearBoxController.CurrentNotch != previousChangedGearBoxNotch)
@@ -2140,8 +2155,16 @@ namespace Orts.Simulation.RollingStocks
                                     if (de.State != DieselEngineState.Running)
                                         de.Initialize();
                                 }
+
+                                // if train is a geared locomotive then set it to automatic operation as AI driver can't operate manual gearboxes
                                 if (de.GearBox != null)
+                                {
                                     de.GearBox.GearBoxOperation = GearBoxOperation.Automatic;
+
+                                    // Set gear to at start.
+                                    de.GearBox.currentGearIndex = de.GearBox.NumOfGears - 1;
+                                }
+                            
                             }
                         }
                     }
@@ -2777,22 +2800,39 @@ namespace Orts.Simulation.RollingStocks
                 }
             }
 
-            // Turn compressor on and off
-            if (MainResPressurePSI < CompressorRestartPressurePSI && LocomotivePowerSupply.AuxiliaryPowerSupplyState == PowerSupplyState.PowerOn && !CompressorIsOn)
+            // Determine compressor synchronization
+            bool syncCompressor = false;
+
+            // Compressor synchronization is ignored if 5 psi above the high setpoint
+            // Only accept synchronization if MU cable is connected and locomotive power supply is on
+            if (RemoteControlGroup != -1 && MainResPressurePSI < MaxMainResPressurePSI + 5.0f 
+                && LocomotivePowerSupply.AuxiliaryPowerSupplyState == PowerSupplyState.PowerOn)
             {
-                SignalEvent(Event.CompressorOn);
-                foreach (var car in Train.Cars)
+                foreach (List<TrainCar> locoGroup in Train.LocoGroups)
                 {
-                    if (car is MSTSLocomotive loco && loco.RemoteControlGroup == 0 && loco.LocomotivePowerSupply.AuxiliaryPowerSupplyOn && !loco.CompressorIsOn && loco.CompressorIsMUControlled)
+                    // Only synchronize in a group of locomotives directly connected
+                    // or synchronize between any two locomotives with MU controlled mode
+                    foreach (TrainCar locoCar in locoGroup)
                     {
-                        loco.SignalEvent(Event.CompressorOn);
+                        if (locoCar is MSTSLocomotive loco)
+                            syncCompressor |= loco.RemoteControlGroup != -1 && (locoGroup.Contains(this as TrainCar) || (CompressorIsMUControlled && loco.CompressorIsMUControlled))
+                                && loco.CompressorIsOn && loco.MainResPressurePSI < loco.MaxMainResPressurePSI;
+
+                        // No need to check repeatedly if we already know to sync compressors
+                        if (syncCompressor)
+                            break;
                     }
+                    if (syncCompressor)
+                        break;
                 }
             }
-            else if ((MainResPressurePSI >= MaxMainResPressurePSI || LocomotivePowerSupply.AuxiliaryPowerSupplyState != PowerSupplyState.PowerOn) && CompressorIsOn)
-            {
+
+            if ((MainResPressurePSI < CompressorRestartPressurePSI || (syncCompressor && MainResPressurePSI < MaxMainResPressurePSI))
+                && LocomotivePowerSupply.AuxiliaryPowerSupplyState == PowerSupplyState.PowerOn && !CompressorIsOn)
+                SignalEvent(Event.CompressorOn);
+            else if (((MainResPressurePSI >= MaxMainResPressurePSI && !syncCompressor)
+                || LocomotivePowerSupply.AuxiliaryPowerSupplyState != PowerSupplyState.PowerOn) && CompressorIsOn)
                 SignalEvent(Event.CompressorOff);
-            }
 
             if (CompressorIsOn)
                 MainResPressurePSI += elapsedClockSeconds * reservoirChargingRate;
@@ -3017,7 +3057,7 @@ namespace Orts.Simulation.RollingStocks
                 else if (ScoopIsBroken)
                 {
                     Simulator.Confirmer.Message(ConfirmLevel.Error, Simulator.Catalog.GetString("Scoop is broken, can't refill"));
-                    RefillingFromTrough = false;       
+                    RefillingFromTrough = false;
                 }
                 else if (IsOverJunction())
                 {
@@ -3027,7 +3067,7 @@ namespace Orts.Simulation.RollingStocks
                     }
                     ScoopIsBroken = true;
                     RefillingFromTrough = false;
-                    SignalEvent(Event.WaterScoopBroken);       
+                    SignalEvent(Event.WaterScoopBroken);
                 }
                 else if (!IsOverTrough())
                 {
@@ -3199,7 +3239,7 @@ namespace Orts.Simulation.RollingStocks
             {
                 var fogBaseFrictionCoefficientFactor = 1.0f;
                 var pricBaseFrictionCoefficientFactor = 1.0f;
-                float pric = Simulator.Weather.PricipitationIntensityPPSPM2 * 1000;
+                float pric = Simulator.Weather.PrecipitationIntensityPPSPM2 * 1000;
                 // precipitation will calculate a base coefficient value between 60% (light rain) and 90% (heavy rain) - this will be a factor that is used to adjust the base value 
                 // assume linear value between upper and lower precipitation values. Limits are set in the weather module, ie Rain = 0.01ppm (10) and Snow = 0.005ppm (5)
                 float precGrad = (0.2f - 0) / (10f - 5f);
@@ -3215,7 +3255,7 @@ namespace Orts.Simulation.RollingStocks
                 }
 
                 // Adjust adhesion for impact of fog - default = 20000m = 20km
-                float fog = Simulator.Weather.FogDistance;
+                float fog = Simulator.Weather.VisibilityM;
                 if (fog < 20000) // as fog thickens then decrease adhesion
                 {
                     fogBaseFrictionCoefficientFactor = Math.Min((fog * 2.75e-4f + 0.6f), 1.0f); // If fog is less then 2km then it will impact friction, decrease adhesion to 60% (same as light rain transition)
@@ -3311,9 +3351,9 @@ namespace Orts.Simulation.RollingStocks
 
         public void UpdateTrackSander(float elapsedClockSeconds)
         {
-        // updates track sander in terms of sand usage and impact on air compressor
-        // The following assumptions have been made:
-        //
+            // updates track sander in terms of sand usage and impact on air compressor
+            // The following assumptions have been made:
+            //
 
             if (Sander && AbsSpeedMpS < SanderSpeedOfMpS)  // If sander switch is on, and not blocked by speed, adjust parameters
             {
@@ -3339,17 +3379,17 @@ namespace Orts.Simulation.RollingStocks
                     SandingSteamUsageLBpS = (BoilerPressurePSI / MaxBoilerPressurePSI) * sandingSteamConsumptionLbpS * elapsedClockSeconds;
 
                     // Calculate sand consumption for sander
-                if (CurrentTrackSandBoxCapacityM3 > 0.0) // if sand still in sandbox then sanding is available
-                {
-                    // Calculate consumption of sand, and drop in sand box level
+                    if (CurrentTrackSandBoxCapacityM3 > 0.0) // if sand still in sandbox then sanding is available
+                    {
+                        // Calculate consumption of sand, and drop in sand box level
                         CurrentTrackSanderSandConsumptionM3pS = (BoilerPressurePSI / MaxBoilerPressurePSI) * sandingSandConsumptionM3pS * elapsedClockSeconds;
                         CurrentTrackSandBoxCapacityM3 -= CurrentTrackSanderSandConsumptionM3pS;
-                    CurrentTrackSandBoxCapacityM3 = MathHelper.Clamp(CurrentTrackSandBoxCapacityM3, 0.0f, MaxTrackSandBoxCapacityM3);
+                        CurrentTrackSandBoxCapacityM3 = MathHelper.Clamp(CurrentTrackSandBoxCapacityM3, 0.0f, MaxTrackSandBoxCapacityM3);
                         if (CurrentTrackSandBoxCapacityM3 <= 0.0)
-                    {
-                        Simulator.Confirmer.Message(ConfirmLevel.Warning, Simulator.Catalog.GetString("Sand supply has been exhausted"));
+                        {
+                            Simulator.Confirmer.Message(ConfirmLevel.Warning, Simulator.Catalog.GetString("Sand supply has been exhausted"));
+                        }
                     }
-                }
                 }
                 else // air consumption
                 {
@@ -3365,7 +3405,7 @@ namespace Orts.Simulation.RollingStocks
                     {
                         sandingAirConsumptionM3pS = MaxTrackSanderAirComsumptionForwardM3pS;
                         sandingSandConsumptionM3pS = MaxTrackSanderSandConsumptionForwardM3pS;
-            }
+                    }
 
                     // Calculate air consumption and change in main air reservoir pressure
                     CurrentTrackSanderAirConsumptionM3pS = (MainResPressurePSI / MaxMainResPressurePSI) * sandingAirConsumptionM3pS * elapsedClockSeconds;
@@ -5633,6 +5673,32 @@ namespace Orts.Simulation.RollingStocks
                             case CABViewControlUnits.CUBIC_M_S:
                             default:
                                 data = this.FilteredBrakePipeFlowM3pS;
+                                break;
+
+                        }
+                        break;
+                    }
+                case CABViewControlTypes.ORTS_TRAIN_AIR_FLOW_METER:
+                    {
+                        switch (cvc.Units)
+                        {
+                            case CABViewControlUnits.CUBIC_FT_MIN:
+                                data = this.Train.TotalBrakePipeFlowM3pS * 35.3147f * 60.0f;
+                                break;
+
+                            case CABViewControlUnits.LITRES_S:
+                            case CABViewControlUnits.LITERS_S:
+                                data = this.Train.TotalBrakePipeFlowM3pS * 1000.0f;
+                                break;
+
+                            case CABViewControlUnits.LITRES_MIN:
+                            case CABViewControlUnits.LITERS_MIN:
+                                data = this.Train.TotalBrakePipeFlowM3pS * 1000.0f * 60.0f;
+                                break;
+
+                            case CABViewControlUnits.CUBIC_M_S:
+                            default:
+                                data = this.Train.TotalBrakePipeFlowM3pS;
                                 break;
 
                         }

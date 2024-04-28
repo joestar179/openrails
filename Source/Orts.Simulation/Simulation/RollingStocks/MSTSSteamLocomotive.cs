@@ -1448,6 +1448,19 @@ namespace Orts.Simulation.RollingStocks
                         // Model current based upon a four cylinder, balanced compound, type Vauclain, as built by Baldwin, with no receiver between the HP and LP cylinder
                         // Set to compound operation intially
 
+                        // include check to see if it is a balanced compound locomotive, ie number of HP cylinders = number of LP cylinders
+                        if(SteamEngines[i].NumberCylinders != SteamEngines[i].LPNumberCylinders && Simulator.Settings.VerboseConfigurationMessages)
+                        {
+                            
+                            Trace.TraceInformation("This doesn't appear to be a balanced compound locomotive, ie LP Cylinders = HP Cylinders. Game performnce may not be realistic.");
+                            SteamEngines[i].NumberCylinders = 2;
+                            SteamEngines[i].LPNumberCylinders = 2;
+
+                            Trace.TraceInformation("Compound locomotive set to balanced with HP Cylinder = {0} and LP Cylinder = {1}", SteamEngines[i].NumberCylinders, SteamEngines[i].LPNumberCylinders);
+
+                        }
+
+
                         CompoundCylinderRatio = (SteamEngines[i].LPCylindersDiameterM * SteamEngines[i].LPCylindersDiameterM) / (SteamEngines[i].CylindersDiameterM * SteamEngines[i].CylindersDiameterM);
                         SteamEngines[i].MaxTractiveEffortLbf = CylinderEfficiencyRate * (1.6f * MaxBoilerPressurePSI * Me.ToIn(SteamEngines[i].LPCylindersDiameterM) * Me.ToIn(SteamEngines[i].LPCylindersDiameterM) * Me.ToIn(SteamEngines[i].LPCylindersStrokeM)) / ((CompoundCylinderRatio + 1.0f) * (Me.ToIn(SteamEngines[i].AttachedAxle.WheelRadiusM * 2.0f)));
 
@@ -2000,9 +2013,9 @@ namespace Orts.Simulation.RollingStocks
                     MaxIndicatedHorsePowerHP += SteamEngines[i].MaxIndicatedHorsePowerHP;
                 }
 
-                if (SteamEngines[i].ExcessWheelBalanceLbs == 0)
+                if (SteamEngines[i].ExcessRodBalanceLbs == 0)
                 {
-                    SteamEngines[i].ExcessWheelBalanceLbs = 440f; // set to a default value.
+                    SteamEngines[i].ExcessRodBalanceLbs = 440f; // set to a default value.
                 }
 
                 // For light locomotives reduce the weight of the various connecting rods, as the default values are for larger locomotives. This will reduce slip on small locomotives
@@ -2012,12 +2025,12 @@ namespace Orts.Simulation.RollingStocks
                 if (MassKG < Kg.FromTUS(10))
                 {
                     const float reductionfactor = 0.2f;
-                    SteamEngines[i].ExcessWheelBalanceLbs *= reductionfactor;
+                    SteamEngines[i].ExcessRodBalanceLbs *= reductionfactor;
                 }
                 else if (MassKG < Kg.FromTUS(20))
                 {
                     const float reductionfactor = 0.3f;
-                    SteamEngines[i].ExcessWheelBalanceLbs *= reductionfactor;
+                    SteamEngines[i].ExcessRodBalanceLbs *= reductionfactor;
                 }
             }
 
@@ -5795,6 +5808,7 @@ namespace Orts.Simulation.RollingStocks
 
                     for (int i = 0; i < SteamEngines[numberofengine].NumberCylinders; i++)
                     {
+                       
                         // This feature sues some different reference angles as follows:
                         // AxlePositionRad - comes from the axle module and is -180 - 0 - 180
                         // Crank Angle - converts the above range to 0 - 180 - 0 - this is the principle reference used so that it lines up with reference
@@ -5981,7 +5995,7 @@ namespace Orts.Simulation.RollingStocks
                         float verticalThrustForcelbf = effectiveRotationalForcelbf * verticalThrustFactor;
 
                         // Calculate Excess Balance
-                        float excessBalanceForcelbf = inertiaSpeedCorrectionFactor * SteamEngines[numberofengine].ExcessWheelBalanceLbs * sin;
+                        float excessBalanceForcelbf = inertiaSpeedCorrectionFactor * SteamEngines[numberofengine].ExcessRodBalanceLbs * sin;
 
                         // Hammer (dynamic) force due to the rotation of the wheels is calculated  
                         // From The Steam Locomotive by Ralph Johnson (pg 276 ) - 
@@ -5991,10 +6005,13 @@ namespace Orts.Simulation.RollingStocks
 
                         if (SteamEngines[numberofengine].AuxiliarySteamEngineType != SteamEngine.AuxiliarySteamEngineTypes.Booster)
                         {
-                            SteamEngines[numberofengine].HammerForceLbs = (1.6047f * Me.ToIn(SteamEngines[numberofengine].CylindersStrokeM) * SteamEngines[numberofengine].ExcessWheelBalanceLbs * (float)Math.Pow(MpS.ToMpH(absSpeedMpS), 2)) / ((float)Math.Pow(Me.ToIn(2.0f * SteamEngines[numberofengine].AttachedAxle.WheelRadiusM), 2) * SteamEngines[numberofengine].AttachedAxle.NumWheelsetAxles);
+                            // calculate the balance force per wheel
+                            var excessBalanceForceWheelLbs = SteamEngines[numberofengine].ExcessRodBalanceLbs / SteamEngines[numberofengine].AttachedAxle.NumWheelsetAxles;
 
                             // weight on each individual wheel, rather then each axle
                             var wheelWeight = SteamEngines[numberofengine].AttachedAxle.WheelWeightKg / (SteamEngines[numberofengine].AttachedAxle.NumWheelsetAxles * 2f);
+
+                            SteamEngines[numberofengine].HammerForceLbs = (1.6047f * Me.ToIn(SteamEngines[numberofengine].CylindersStrokeM) * excessBalanceForceWheelLbs * (float)Math.Pow(MpS.ToMpH(absSpeedMpS), 2)) / ((float)Math.Pow(Me.ToIn(2.0f * SteamEngines[numberofengine].AttachedAxle.WheelRadiusM), 2) * SteamEngines[numberofengine].AttachedAxle.NumWheelsetAxles);
 
                             if (SteamEngines[numberofengine].HammerForceLbs > wheelWeight)
                             {
@@ -7985,7 +8002,7 @@ namespace Orts.Simulation.RollingStocks
                     }
                 }
 
-                status.AppendFormat("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}\t{12}\n",
+                status.AppendFormat("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}\t{12}\t{13} \t{14:N0}{15}\n",
                     Simulator.Catalog.GetString("ForceTot:"),
                     Simulator.Catalog.GetString("TheorTE"),
                     FormatStrings.FormatForce(N.FromLbf(MaxTractiveEffortLbf), IsMetric),
@@ -7998,7 +8015,12 @@ namespace Orts.Simulation.RollingStocks
                     Simulator.Catalog.GetString("CritSpeed"),
                     FormatStrings.FormatSpeedDisplay(MpS.FromMpH(MaxLocoSpeedMpH), IsMetric),
                     Simulator.Catalog.GetString("SpdLmt"),
-                    IsCritTELimit ? Simulator.Catalog.GetString("Yes") : Simulator.Catalog.GetString("No"));
+                    IsCritTELimit ? Simulator.Catalog.GetString("Yes") : Simulator.Catalog.GetString("No"),
+                    Simulator.Catalog.GetString("Hammer"),
+                    FormatStrings.FormatForce(N.FromLbf(SteamEngines[0].HammerForceLbs), IsMetric),
+                    SteamEngines[0].IsWheelHammerForce ? "!!!" : SteamEngines[0].IsWheelHammerForceWarning ? "???" : ""
+
+                    );
 
                 status.AppendFormat("{0}\t{1}\t{2:N0} {5}/{6}\t\t{3}\t{4:N0} \t{7} {8:N2}\n",
                     Simulator.Catalog.GetString("Move:"),
