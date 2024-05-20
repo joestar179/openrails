@@ -20,6 +20,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -28,6 +29,9 @@ using Microsoft.Xna.Framework.Graphics;
 using Orts.Viewer3D.Common;
 using Orts.Viewer3D.Popups;
 using ORTS.Common;
+using Color = Microsoft.Xna.Framework.Color;
+using Point = Microsoft.Xna.Framework.Point;
+using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
 namespace Orts.Viewer3D
 {
@@ -195,7 +199,43 @@ namespace Orts.Viewer3D
                 return SharedMaterialManager.MissingTexture;
             }
         }
+        public static Texture2D Get(GraphicsDevice graphicsDevice, string path, Microsoft.Xna.Framework.Rectangle MapRectangle)
+        {
+            if (path == null || path == "")
+                return SharedMaterialManager.MissingTexture;
         
+            path = path.ToLowerInvariant();
+            var ext = Path.GetExtension(path);
+
+            using (var stream = File.OpenRead(path))
+            {
+                if (ext == ".bmp" || ext == ".png")
+                {
+                    using (var image = System.Drawing.Image.FromStream(stream))
+                    {
+                        using (var memoryStream = new MemoryStream())
+                        {
+                            var mapRectangle = new System.Drawing.Rectangle
+                            {
+                                Height = MapRectangle.Height,
+                                Width = MapRectangle.Width,
+                                X = MapRectangle.X,
+                                Y = MapRectangle.Y
+                            };
+                            var imageRect = new Bitmap(image).Clone(mapRectangle, image.PixelFormat);
+                            imageRect.Save(memoryStream, System.Drawing.Imaging.ImageFormat.Png);
+                            memoryStream.Seek(0, SeekOrigin.Begin);
+                            return Texture2D.FromStream(graphicsDevice, memoryStream);
+                        }
+                    }
+                }
+                else
+                {
+                    Trace.TraceWarning("Unsupported texture format: {0}", path);
+                    return SharedMaterialManager.MissingTexture;
+                }
+            }
+        }
         public void Mark()
         {
             TextureMarks.Clear();
@@ -366,6 +406,9 @@ namespace Orts.Viewer3D
                         break;
                     case "Water":
                         Materials[materialKey] = new WaterMaterial(Viewer, textureName);
+                        break;
+                    case "Screen":
+                        Materials[materialKey] = new ScreenMaterial(Viewer, textureName);
                         break;
                     default:
                         Trace.TraceInformation("Skipped unknown material type {0}", materialName);
@@ -541,16 +584,16 @@ namespace Orts.Viewer3D
             // End headlight illumination
             if (Viewer.Settings.UseMSTSEnv == false)
             {
-                SceneryShader.Overcast = Viewer.Simulator.Weather.OvercastFactor;
-                SceneryShader.SetFog(Viewer.Simulator.Weather.FogDistance, ref SharedMaterialManager.FogColor);
-                ParticleEmitterShader.SetFog(Viewer.Simulator.Weather.FogDistance, ref SharedMaterialManager.FogColor);
+                SceneryShader.Overcast = Viewer.Simulator.Weather.CloudCoverFactor;
+                SceneryShader.SetFog(Viewer.Simulator.Weather.VisibilityM, ref SharedMaterialManager.FogColor);
+                ParticleEmitterShader.SetFog(Viewer.Simulator.Weather.VisibilityM, ref SharedMaterialManager.FogColor);
                 SceneryShader.ViewerPos = Viewer.Camera.XnaLocation(Viewer.Camera.CameraWorldLocation);
             }
             else
             {
                 SceneryShader.Overcast = Viewer.World.MSTSSky.mstsskyovercastFactor;
                 SceneryShader.SetFog(Viewer.World.MSTSSky.mstsskyfogDistance, ref SharedMaterialManager.FogColor);
-                ParticleEmitterShader.SetFog(Viewer.Simulator.Weather.FogDistance, ref SharedMaterialManager.FogColor);
+                ParticleEmitterShader.SetFog(Viewer.Simulator.Weather.VisibilityM, ref SharedMaterialManager.FogColor);
                 SceneryShader.ViewerPos = Viewer.Camera.XnaLocation(Viewer.Camera.CameraWorldLocation);
             }
         }
@@ -1164,6 +1207,37 @@ namespace Orts.Viewer3D
         }
     }
 
+    public class ScreenMaterial : SceneryMaterial
+    {
+        RollingStock.CabViewControlRenderer ScreenRenderer;
+
+        public ScreenMaterial(Viewer viewer, string key)
+            : base(viewer, key, SceneryMaterialOptions.ShaderFullBright, 0)
+        {
+        }
+
+        public void Set2DRenderer(RollingStock.CabViewControlRenderer circularSpeedGaugeRenderer)
+        {
+            ScreenRenderer = circularSpeedGaugeRenderer;
+            Texture = new RenderTarget2D(Viewer.GraphicsDevice,
+                (int)ScreenRenderer.Control.Width, (int)ScreenRenderer.Control.Height, false, SurfaceFormat.Color, DepthFormat.None);
+        }
+
+        public override void Render(GraphicsDevice graphicsDevice, IEnumerable<RenderItem> renderItems, ref Matrix XNAViewMatrix, ref Matrix XNAProjectionMatrix)
+        {
+            if (ScreenRenderer != null)
+            {
+                var originalRenderTargets = graphicsDevice.GetRenderTargets();
+                graphicsDevice.SetRenderTarget(Texture as RenderTarget2D);
+                ScreenRenderer.ControlView.SpriteBatch.Begin(); // Dummy Begin(), gets closed immediately
+                ScreenRenderer.Draw(graphicsDevice);
+                ScreenRenderer.ControlView.SpriteBatch.End();
+                graphicsDevice.SetRenderTargets(originalRenderTargets);
+            }
+            base.Render(graphicsDevice, renderItems, ref XNAViewMatrix, ref XNAProjectionMatrix);
+        }
+    }
+
     public class YellowMaterial : Material
     {
         static BasicEffect basicEffect;
@@ -1272,6 +1346,7 @@ namespace Orts.Viewer3D
     {
         public readonly Texture2D Texture;
         public readonly WindowTextFont Font;
+        public readonly WindowTextFont BigFont;
 
         readonly List<Rectangle> TextBoxes = new List<Rectangle>();
 
@@ -1281,6 +1356,7 @@ namespace Orts.Viewer3D
             Texture = new Texture2D(SpriteBatch.GraphicsDevice, 1, 1, false, SurfaceFormat.Color);
             Texture.SetData(new[] { Color.White });
             Font = Viewer.WindowManager.TextManager.GetScaled("Arial", 12, System.Drawing.FontStyle.Bold, 1);
+            BigFont = Viewer.WindowManager.TextManager.GetScaled("Arial", 24, System.Drawing.FontStyle.Bold, 2);
         }
 
         public override void SetState(GraphicsDevice graphicsDevice, Material previousMaterial)

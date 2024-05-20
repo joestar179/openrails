@@ -351,6 +351,16 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Brakes.MSTS
             return 0;
         }
 
+        public override float GetTotalCylVolumeM3()
+        {
+            return 0;
+        }
+
+        public override float GetNormalizedCylTravel()
+        {
+            return ManualBrakingCurrentFraction;
+        }
+
         public override float GetVacResVolume()
         {
             return 0;

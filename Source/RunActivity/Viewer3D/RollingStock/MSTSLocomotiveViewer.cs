@@ -35,7 +35,6 @@ using Orts.Viewer3D.Common;
 using Orts.Viewer3D.Popups;
 using Orts.Viewer3D.RollingStock.SubSystems;
 using Orts.Viewer3D.RollingStock.Subsystems.ETCS;
-using Orts.Viewer3D.WebServices.SwitchPanel;
 using ORTS.Common;
 using ORTS.Common.Input;
 using ORTS.Scripting.Api;
@@ -60,6 +59,13 @@ namespace Orts.Viewer3D.RollingStock
         public bool lemergencybuttonpressed = false;
         CruiseControlViewer CruiseControlViewer;
 
+        public Dictionary<CABViewControlTypes, UserCommand[]> UserCommandControlTypes = new Dictionary<CABViewControlTypes, UserCommand[]>();
+
+        private bool IsMouseWheelChanged;
+        private DateTime MouseWheelChangedTime;
+        private int MouseWheelClicks;
+        private UserCommand MouseWheelCommand;
+        
         public MSTSLocomotiveViewer(Viewer viewer, MSTSLocomotive car)
             : base(viewer, car)
         {
@@ -118,7 +124,7 @@ namespace Orts.Viewer3D.RollingStock
         {
             if (Locomotive.Direction != Direction.Forward
             && (Locomotive.ThrottlePercent >= 1
-            || Math.Abs(Locomotive.SpeedMpS) > 1 || Locomotive.DynamicBrakeIntervention >= 0))
+            || Math.Abs(Locomotive.SpeedMpS) > 1 || Locomotive.DynamicBrakeController?.CurrentValue > 0))
             {
                 Viewer.Simulator.Confirmer.Warning(CabControl.Reverser, CabSetting.Warn1);
                 return;
@@ -130,7 +136,7 @@ namespace Orts.Viewer3D.RollingStock
         {
             if (Locomotive.Direction != Direction.Reverse
             && (Locomotive.ThrottlePercent >= 1
-            || Math.Abs(Locomotive.SpeedMpS) > 1 || Locomotive.DynamicBrakeIntervention >= 0))
+            || Math.Abs(Locomotive.SpeedMpS) > 1 || Locomotive.DynamicBrakeController?.CurrentValue > 0))
             {
                 Viewer.Simulator.Confirmer.Warning(CabControl.Reverser, CabSetting.Warn1);
                 return;
@@ -143,19 +149,34 @@ namespace Orts.Viewer3D.RollingStock
             // Steam locomotives handle these differently, and might have set them already
             if (!UserInputCommands.ContainsKey(UserCommand.ControlForwards))
                 UserInputCommands.Add(UserCommand.ControlForwards, new Action[] { Noop, () => ReverserControlForwards() });
+
             if (!UserInputCommands.ContainsKey(UserCommand.ControlBackwards))
+            {
                 UserInputCommands.Add(UserCommand.ControlBackwards, new Action[] { Noop, () => ReverserControlBackwards() });
+                UserCommandControlTypes.Add(CABViewControlTypes.DIRECTION, new UserCommand[] { UserCommand.ControlForwards, UserCommand.ControlBackwards });
+            }
 
             UserInputCommands.Add(UserCommand.ControlThrottleIncrease, new Action[] { () => Locomotive.StopThrottleIncrease(), () => Locomotive.StartThrottleIncrease() });
             UserInputCommands.Add(UserCommand.ControlThrottleDecrease, new Action[] { () => Locomotive.StopThrottleDecrease(), () => Locomotive.StartThrottleDecrease() });
+            UserCommandControlTypes.Add(CABViewControlTypes.THROTTLE, new UserCommand[] { UserCommand.ControlThrottleIncrease, UserCommand.ControlThrottleDecrease});
+            UserCommandControlTypes.Add(CABViewControlTypes.CP_HANDLE, new UserCommand[] { UserCommand.ControlThrottleIncrease, UserCommand.ControlThrottleDecrease });
+
             UserInputCommands.Add(UserCommand.ControlThrottleZero, new Action[] { Noop, () => Locomotive.ThrottleToZero() });
+
             UserInputCommands.Add(UserCommand.ControlGearUp, new Action[] { () => StopGearBoxIncrease(), () => StartGearBoxIncrease() });
             UserInputCommands.Add(UserCommand.ControlGearDown, new Action[] { () => StopGearBoxDecrease(), () => StartGearBoxDecrease() });
+            UserCommandControlTypes.Add(CABViewControlTypes.GEARS, new UserCommand[] { UserCommand.ControlGearUp, UserCommand.ControlGearDown });
+
             UserInputCommands.Add(UserCommand.ControlTrainBrakeIncrease, new Action[] { () => Locomotive.StopTrainBrakeIncrease(), () => Locomotive.StartTrainBrakeIncrease(null) });
             UserInputCommands.Add(UserCommand.ControlTrainBrakeDecrease, new Action[] { () => Locomotive.StopTrainBrakeDecrease(), () => Locomotive.StartTrainBrakeDecrease(null) });
+            UserCommandControlTypes.Add(CABViewControlTypes.TRAIN_BRAKE, new UserCommand[] { UserCommand.ControlTrainBrakeIncrease, UserCommand.ControlTrainBrakeDecrease});
+
             UserInputCommands.Add(UserCommand.ControlTrainBrakeZero, new Action[] { Noop, () => Locomotive.StartTrainBrakeDecrease(0, true) });
+
             UserInputCommands.Add(UserCommand.ControlEngineBrakeIncrease, new Action[] { () => Locomotive.StopEngineBrakeIncrease(), () => Locomotive.StartEngineBrakeIncrease(null) });
             UserInputCommands.Add(UserCommand.ControlEngineBrakeDecrease, new Action[] { () => Locomotive.StopEngineBrakeDecrease(), () => Locomotive.StartEngineBrakeDecrease(null) });
+            UserCommandControlTypes.Add(CABViewControlTypes.ENGINE_BRAKE, new UserCommand[] { UserCommand.ControlEngineBrakeIncrease, UserCommand.ControlEngineBrakeDecrease });
+
             UserInputCommands.Add(UserCommand.ControlBrakemanBrakeIncrease, new Action[] { () => Locomotive.StopBrakemanBrakeIncrease(), () => Locomotive.StartBrakemanBrakeIncrease(null) });
             UserInputCommands.Add(UserCommand.ControlBrakemanBrakeDecrease, new Action[] { () => Locomotive.StopBrakemanBrakeDecrease(), () => Locomotive.StartBrakemanBrakeDecrease(null) });
             UserInputCommands.Add(UserCommand.ControlDynamicBrakeIncrease, new Action[] { () => Locomotive.StopDynamicBrakeIncrease(), () => Locomotive.StartDynamicBrakeIncrease(null) });
@@ -314,7 +335,7 @@ namespace Orts.Viewer3D.RollingStock
 
             foreach (var command in UserInputCommands.Keys)
             {
-                if (UserInput.IsPressed(command))
+                if (UserInput.IsPressed(command) || IsMouseWheelRotated(command))
                 {
                     UserInputCommands[command][1]();
                     //Debrief eval
@@ -333,7 +354,59 @@ namespace Orts.Viewer3D.RollingStock
                     //Debrief eval
                     if (lemergencybuttonpressed && !Locomotive.EmergencyButtonPressed) lemergencybuttonpressed = false;
                 }
+                else if (IsMouseWheelChanged && (DateTime.Now.Subtract(MouseWheelChangedTime).TotalMilliseconds > (500 * MouseWheelClicks)) && (command == MouseWheelCommand))
+                {
+                    UserInputCommands[command][0]();
+                    //Debrief eval
+                    if (lemergencybuttonpressed && !Locomotive.EmergencyButtonPressed) lemergencybuttonpressed = false;
+                    IsMouseWheelChanged = false;
             }
+        }
+        }
+
+        bool IsMouseWheelRotated(UserCommand command)
+        {
+            if (UserInput.IsMouseWheelChanged)
+            {
+                if (Viewer.Camera is CabCamera && (this as MSTSLocomotiveViewer)._hasCabRenderer)
+                {
+                    var cabRenderer = (this as MSTSLocomotiveViewer)._CabRenderer;
+                    foreach (var controlRenderer in cabRenderer.ControlMap.Values)
+                    {
+                        if ((Viewer.Camera as CabCamera).SideLocation == controlRenderer.Control.CabViewpoint && controlRenderer is ICabViewMouseControlRenderer mouseRenderer)
+                        {
+                            if (mouseRenderer.IsMouseWithin())
+                            {
+                                UserCommand [] userCommands;
+                                UserCommandControlTypes.TryGetValue(controlRenderer.Control.ControlType.Type, out userCommands);
+                                if (userCommands != null)
+                                {
+                                    // check if user command (e.g. ControlThrottleIncrease) equals control type (e.g. THROTTLE)
+                                    if (((command == userCommands[0]) && (UserInput.MouseWheelChange > 0)) ||
+                                        ((command == userCommands[1]) && (UserInput.MouseWheelChange < 0)))
+                                    {
+                                        if (!IsMouseWheelChanged)
+                                        {
+                                            IsMouseWheelChanged = true;
+                                            MouseWheelChangedTime = DateTime.Now;
+                                            MouseWheelClicks = 1;
+                                            MouseWheelCommand = command;
+                                        }
+                                        else
+                                        {
+                                            MouseWheelClicks += 1;
+                                        }
+                                        return true;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -1532,7 +1605,7 @@ namespace Orts.Viewer3D.RollingStock
             if (_Shader != null)
             {
                 // TODO: Readd ability to control night time lighting.
-                float overcast = _Viewer.Settings.UseMSTSEnv ? _Viewer.World.MSTSSky.mstsskyovercastFactor : _Viewer.Simulator.Weather.OvercastFactor;
+                float overcast = _Viewer.Settings.UseMSTSEnv ? _Viewer.World.MSTSSky.mstsskyovercastFactor : _Viewer.Simulator.Weather.CloudCoverFactor;
                 _Shader.SetData(_Viewer.MaterialManager.sunDirection, _isNightTexture, false, overcast);
                 _Shader.SetTextureData(cabRect.Left, cabRect.Top, cabRect.Width, cabRect.Height);
                 _Shader.CurrentTechnique.Passes[0].Apply();
@@ -1603,7 +1676,7 @@ namespace Orts.Viewer3D.RollingStock
         protected readonly MSTSLocomotive Locomotive;
         public readonly CabViewControl Control;
         protected readonly CabShader Shader;
-        protected readonly SpriteBatchMaterial ControlView;
+        public readonly SpriteBatchMaterial ControlView;
 
         protected Vector2 Position;
         protected Texture2D Texture;
@@ -1700,6 +1773,8 @@ namespace Orts.Viewer3D.RollingStock
         void HandleUserInput();
         string GetControlName();
         string ControlLabel { get; }
+        Rectangle DestinationRectangleGet();
+        bool isMouseControl();
     }
 
     /// <summary>
@@ -2005,6 +2080,7 @@ namespace Orts.Viewer3D.RollingStock
         float Scale = 1;
         int OldFrameIndex = 0;
         public bool ButtonState = false;
+        int SplitIndex = -1;
 
         /// <summary>
         /// Accumulated mouse movement. Used for controls with no assigned notch controllers, e.g. headlight and reverser.
@@ -2034,12 +2110,27 @@ namespace Orts.Viewer3D.RollingStock
                     ChangedValue = (value) =>
                     {
                         IntermediateValue %= 0.5f;
+                        if (UserInput.IsMouseLeftButtonDown)
+                        {
                         IntermediateValue += NormalizedMouseMovement();
+                        } 
+                        else
+                        {
+                            // mousewheel
+                            IntermediateValue += (float)UserInput.MouseWheelChange / 700;
+                        }
                         return IntermediateValue > 0.5f ? 1 : IntermediateValue < -0.5f ? -1 : 0;
                     };
                     break;
-                default: ChangedValue = (value) => value + NormalizedMouseMovement(); break;
+                default:
+                    ChangedValue = (value) =>
+                    {
+                        return value + NormalizedMouseMovement();
+                    };
+                    break;
             }
+            // The cab view control index shown when combined control is at the split position
+            SplitIndex = PercentToIndex(Locomotive.CombinedControlSplitPosition);
         }
 
         public override void PrepareFrame(RenderFrame frame, ElapsedTime elapsedTime)
@@ -2130,55 +2221,27 @@ namespace Orts.Viewer3D.RollingStock
                     break;
                 case CABViewControlTypes.DYNAMIC_BRAKE:
                 case CABViewControlTypes.DYNAMIC_BRAKE_DISPLAY:
-                    var dynBrakePercent = Locomotive.Train.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING ?
+                    var dynBrakePercent = (Locomotive.Train.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING || Locomotive.Train.Autopilot) ?
                         Locomotive.DynamicBrakePercent : Locomotive.LocalDynamicBrakePercent;
-                    if (Locomotive.DynamicBrakeController != null)
-                    {
-                        if (dynBrakePercent == -1)
-                        {
+                    if (dynBrakePercent <= 0)
                             index = 0;
-                            break;
-                        }
+                    else if (Locomotive.DynamicBrakeController != null)
+                    {
                         if (!Locomotive.HasSmoothStruc)
-                        {
-                            index = Locomotive.DynamicBrakeController != null ? Locomotive.DynamicBrakeController.CurrentNotch : 0;
-                        }
+                            index = Locomotive.DynamicBrakeController.CurrentNotch;
                         else
-                        {
-                            if (Locomotive.CruiseControl != null)
-                            {
-                                if ((Locomotive.CruiseControl.SpeedRegMode == Simulation.RollingStocks.SubSystems.CruiseControl.SpeedRegulatorMode.Auto && !Locomotive.CruiseControl.DynamicBrakePriority) || Locomotive.DynamicBrakeIntervention > 0)
-                                {
-                                    index = 0;
+                            index = PercentToIndex(Locomotive.DynamicBrakeController.CurrentValue);
                                 }
                                 else
                                     index = PercentToIndex(dynBrakePercent);
-                            }
-                            else
-                                index = PercentToIndex(dynBrakePercent);
-                        }
-                    }
-                    else
-                    {
-                        index = PercentToIndex(dynBrakePercent);
-                    }
                     break;
                 case CABViewControlTypes.CPH_DISPLAY:
-                    if (Locomotive.CombinedControlType == MSTSLocomotive.CombinedControl.ThrottleDynamic && Locomotive.DynamicBrakePercent >= 0)
-                        // TODO <CSComment> This is a sort of hack to allow MSTS-compliant operation of Dynamic brake indications in the standard USA case with 8 steps (e.g. Dash9)
-                        // This hack returns to code of previous OR versions (e.g. release 1.0).
-                        // The clean solution for MSTS compliance would be not to increment the percentage of the dynamic brake at first dynamic brake key pression, so that
-                        // subsequent steps become of 12.5% as in MSTS instead of 11.11% as in OR. This requires changes in the physics logic </CSComment>
-                        index = (int)((ControlDiscrete.FramesCount) * Locomotive.GetCombinedHandleValue(false));
-                    else
-                        index = PercentToIndex(Locomotive.GetCombinedHandleValue(false));
-                    break;
                 case CABViewControlTypes.CP_HANDLE:
-                    if (Locomotive.CombinedControlType == MSTSLocomotive.CombinedControl.ThrottleDynamic && Locomotive.DynamicBrakePercent >= 0
-                            || Locomotive.CombinedControlType == MSTSLocomotive.CombinedControl.ThrottleAir && Locomotive.TrainBrakeController.CurrentValue > 0)
-                            index = PercentToIndex(Locomotive.GetCombinedHandleValue(false));
-                        else
-                            index = PercentToIndex(Locomotive.GetCombinedHandleValue(false));
+                    var combinedHandlePosition = Locomotive.GetCombinedHandleValue(false);
+                    index = PercentToIndex(combinedHandlePosition);
+                    // Make sure power indications are not shown when locomotive is in braking range
+                    if (combinedHandlePosition > Locomotive.CombinedControlSplitPosition)
+                        index = Math.Max(index, SplitIndex + 1);
                     break;
                 case CABViewControlTypes.ORTS_SELECTED_SPEED_DISPLAY:
                     if (Locomotive.CruiseControl == null)
@@ -2342,10 +2405,21 @@ namespace Orts.Viewer3D.RollingStock
         /// </summary>
         float NormalizedMouseMovement()
         {
+            if (UserInput.IsMouseLeftButtonDown)
+            {
             return (ControlDiscrete.Orientation > 0
                 ? (float)UserInput.MouseMoveY / (float)Control.Height
                 : (float)UserInput.MouseMoveX / (float)Control.Width)
                 * (ControlDiscrete.Direction > 0 ? -1 : 1);
+        }
+            else
+            {
+                // mousewheel
+                return (ControlDiscrete.Orientation > 0
+                    ? (float)UserInput.MouseWheelChange / (float)1500
+                    : (float)UserInput.MouseWheelChange / (float)1500)
+                    * (ControlDiscrete.Direction > 0 ? -1 : 1);
+            }
         }
 
         public bool IsMouseWithin()
@@ -2835,9 +2909,29 @@ namespace Orts.Viewer3D.RollingStock
             {
                 try
                 {
-                    var val = ControlDiscrete.Values[0] <= ControlDiscrete.Values[ControlDiscrete.Values.Count - 1] ?
-                        ControlDiscrete.Values.Where(v => (float)v <= percent + 0.00001).Last() : ControlDiscrete.Values.Where(v => (float)v <= percent + 0.00001).First();
-                    index = ControlDiscrete.Values.IndexOf(val);
+                    // Binary search process to find the control value closest to percent
+                    List<double> vals = ControlDiscrete.Values;
+                    // Check if control values were defined in reverse, reverse them back for this calculation
+                    // This is less efficient, so creators should be encouraged to not do this
+                    bool reversed = ControlDiscrete.Values[0] > ControlDiscrete.Values[ControlDiscrete.Values.Count - 1];
+                    if (reversed)
+                        vals.Reverse();
+
+                    // Returns index of first val larger than percent, or bitwise compliment of this index if percent isn't in the list
+                    int checkIndex = vals.BinarySearch(percent);
+
+                    if (checkIndex < 0)
+                        checkIndex = ~checkIndex;
+                    if (checkIndex > vals.Count - 1)
+                        checkIndex = vals.Count - 1;
+                    // Choose lower index if it is closer to percent
+                    if (checkIndex > 0 && Math.Abs(vals[checkIndex - 1] - percent) < Math.Abs(vals[checkIndex] - percent))
+                        checkIndex--;
+                    // Re-reverse the index as needed
+                    if (reversed)
+                        checkIndex = (vals.Count - 1) - checkIndex;
+
+                    index = checkIndex;
                 }
                 catch
                 {
@@ -2851,6 +2945,16 @@ namespace Orts.Viewer3D.RollingStock
             }
 
             return index;
+        }
+
+        public Rectangle DestinationRectangleGet()
+        {
+            return DestinationRectangle;
+        }
+
+        public bool isMouseControl()
+        {
+            return ControlDiscrete.MouseControl;
         }
     }
 
@@ -3264,6 +3368,7 @@ namespace Orts.Viewer3D.RollingStock
         //Dictionary<int, DigitalDisplay> DigitParts = null;
         Dictionary<(CabViewControlType, int), ThreeDimCabDigit> DigitParts3D = null;
         Dictionary<(CabViewControlType, int), ThreeDimCabDPI> DPIDisplays3D = null;
+        Dictionary<(CabViewControlType, int), ThreeDimCabScreen> ScreenDisplays3D = null;
         AnimatedPart ExternalWipers = null; // setting to zero to prevent a warning. Probably this will be used later. TODO
         protected MSTSLocomotive MSTSLocomotive { get { return (MSTSLocomotive)Car; } }
         MSTSLocomotiveViewer LocoViewer;
@@ -3287,6 +3392,7 @@ namespace Orts.Viewer3D.RollingStock
             DigitParts3D = new Dictionary<(CabViewControlType, int), ThreeDimCabDigit>();
             Gauges = new Dictionary<(CabViewControlType, int), ThreeDimCabGaugeNative>();
             DPIDisplays3D = new Dictionary<(CabViewControlType, int), ThreeDimCabDPI>();
+            ScreenDisplays3D = new Dictionary<(CabViewControlType, int), ThreeDimCabScreen>();
             OnDemandAnimateParts = new Dictionary<(CabViewControlType, int), AnimatedPart>();
 
             // Find the animated parts
@@ -3352,7 +3458,16 @@ namespace Orts.Viewer3D.RollingStock
                             break;
                     }
 
-                    if (style != null && style is CabViewDigitalRenderer)//digits?
+                    if (style is CircularSpeedGaugeRenderer || style is DriverMachineInterfaceRenderer)
+                    {
+                        // Attach the control renderer to the material
+                        var material = Viewer.MaterialManager.Load("Screen", Helpers.GetTextureFile(Viewer.Simulator, Helpers.TextureFlags.None,
+                            TrainCarShape.SharedShape.ReferencePath, matrixName)) as ScreenMaterial;
+                        material?.Set2DRenderer(locoViewer.ThreeDimentionCabRenderer.ControlMap[key]);
+
+                        ScreenDisplays3D.Add(key, new ThreeDimCabScreen(viewer, iMatrix, TrainCarShape, locoViewer.ThreeDimentionCabRenderer.ControlMap[key]));
+                    }
+                    else if (style != null && style is CabViewDigitalRenderer)//digits?
                     {
                         //DigitParts.Add(key, new DigitalDisplay(viewer, TrainCarShape, iMatrix, parameter, locoViewer.ThreeDimentionCabRenderer.ControlMap[key]));
                         DigitParts3D.Add(key, new ThreeDimCabDigit(viewer, iMatrix, parameter1, parameter2, this.TrainCarShape, locoViewer.ThreeDimentionCabRenderer.ControlMap[key], Locomotive));

@@ -151,11 +151,6 @@ namespace Orts.Simulation.RollingStocks
         float TenderWagonMaxCoalMassKG;
         float TenderWagonMaxWaterMassKG;
 
-        // Wind Impacts
-        float WagonDirectionDeg;
-        float WagonResultantWindComponentDeg;
-        float WagonWindResultantSpeedMpS;
-
         protected float FrictionC1; // MSTS Friction parameters
         protected float FrictionE1; // MSTS Friction parameters
         protected float FrictionV2; // MSTS Friction parameters
@@ -283,6 +278,11 @@ namespace Orts.Simulation.RollingStocks
         public bool AuxiliaryReservoirPresent;
 
         /// <summary>
+        /// Indicates whether an additional supply reservoir is present on the wagon or not.
+        /// </summary>
+        public bool SupplyReservoirPresent;
+
+        /// <summary>
         /// Active locomotive for a control trailer
         /// </summary>
         public MSTSLocomotive ControlActiveLocomotive { get; private set; }
@@ -406,6 +406,8 @@ namespace Orts.Simulation.RollingStocks
         float LoadEmptyMaxBrakeForceN;
         float LoadEmptyMaxHandbrakeForceN;
         float LoadEmptyCentreOfGravityM_Y;
+        float LoadEmptyRelayValveRatio;
+        float LoadEmptyInshotPSI;
 
         float LoadFullMassKg;
         float LoadFullORTSDavis_A;
@@ -416,6 +418,8 @@ namespace Orts.Simulation.RollingStocks
         float LoadFullMaxBrakeForceN;
         float LoadFullMaxHandbrakeForceN;
         float LoadFullCentreOfGravityM_Y;
+        float LoadFullRelayValveRatio;
+        float LoadFullInshotPSI;
 
 
         /// <summary>
@@ -782,6 +786,24 @@ namespace Orts.Simulation.RollingStocks
                     LoadEmptyCentreOfGravityM_Y = CentreOfGravityM.Y;
                 }
 
+                if (FreightAnimations.EmptyRelayValveRatio > 0)
+                {
+                    LoadEmptyRelayValveRatio = FreightAnimations.EmptyRelayValveRatio;
+                }
+                else if (BrakeSystem is AirSinglePipe brakes)
+                {
+                    LoadEmptyRelayValveRatio = brakes.RelayValveRatio;
+                }
+
+                if (FreightAnimations.EmptyInshotPSI != 0)
+                {
+                    LoadEmptyInshotPSI = FreightAnimations.EmptyInshotPSI;
+                }
+                else if (BrakeSystem is AirSinglePipe brakes)
+                {
+                    LoadEmptyInshotPSI = brakes.RelayValveInshotPSI;
+                }
+
                 // Read (initialise) Static load ones if a static load
                 // Test each value to make sure that it has been defined in the WAG file, if not default to Root WAG file value
                 if (FreightAnimations.FullPhysicsStaticOne != null)
@@ -860,6 +882,24 @@ namespace Orts.Simulation.RollingStocks
                     else
                     {
                         LoadFullCentreOfGravityM_Y = CentreOfGravityM.Y;
+                    }
+
+                    if (FreightAnimations.FullPhysicsStaticOne.FullStaticRelayValveRatio > 0)
+                    {
+                        LoadFullRelayValveRatio = FreightAnimations.FullPhysicsStaticOne.FullStaticRelayValveRatio;
+                    }
+                    else if (BrakeSystem is AirSinglePipe brakes)
+                    {
+                        LoadFullRelayValveRatio = brakes.RelayValveRatio;
+                    }
+
+                    if (FreightAnimations.FullPhysicsStaticOne.FullStaticInshotPSI > 0)
+                    {
+                        LoadFullInshotPSI = FreightAnimations.FullPhysicsStaticOne.FullStaticInshotPSI;
+                    }
+                    else if (BrakeSystem is AirSinglePipe brakes)
+                    {
+                        LoadFullInshotPSI = brakes.RelayValveInshotPSI;
                     }
                 }
 
@@ -951,6 +991,24 @@ namespace Orts.Simulation.RollingStocks
                     {
                         LoadFullCentreOfGravityM_Y = CentreOfGravityM.Y;
                     }
+
+                    if (FreightAnimations.FullPhysicsContinuousOne.FullRelayValveRatio > 0)
+                    {
+                        LoadFullRelayValveRatio = FreightAnimations.FullPhysicsContinuousOne.FullRelayValveRatio;
+                    }
+                    else if (BrakeSystem is AirSinglePipe brakes)
+                    {
+                        LoadFullRelayValveRatio = brakes.RelayValveRatio;
+                    }
+
+                    if (FreightAnimations.FullPhysicsContinuousOne.FullInshotPSI != 0)
+                    {
+                        LoadFullInshotPSI = FreightAnimations.FullPhysicsContinuousOne.FullInshotPSI;
+                    }
+                    else if (BrakeSystem is AirSinglePipe brakes)
+                    {
+                        LoadFullInshotPSI = brakes.RelayValveInshotPSI;
+                    }
                 }
 
                 if (!FreightAnimations.MSTSFreightAnimEnabled) FreightShapeFileName = null;
@@ -973,6 +1031,11 @@ namespace Orts.Simulation.RollingStocks
                         // Update brake parameters   
                         MaxBrakeForceN = LoadFullMaxBrakeForceN;
                         MaxHandbrakeForceN = LoadFullMaxHandbrakeForceN;
+                        if (BrakeSystem is AirSinglePipe brakes)
+                        {
+                            brakes.RelayValveRatio = LoadFullRelayValveRatio;
+                            brakes.RelayValveInshotPSI = LoadFullInshotPSI;
+                        }
 
                         // Update friction related parameters
                         DavisAN = LoadFullORTSDavis_A;
@@ -997,6 +1060,12 @@ namespace Orts.Simulation.RollingStocks
                     // Update brake parameters
                     MaxBrakeForceN = ((LoadFullMaxBrakeForceN - LoadEmptyMaxBrakeForceN) * TempMassDiffRatio) + LoadEmptyMaxBrakeForceN;
                     MaxHandbrakeForceN = ((LoadFullMaxHandbrakeForceN - LoadEmptyMaxHandbrakeForceN) * TempMassDiffRatio) + LoadEmptyMaxHandbrakeForceN;
+                    // Not sensible to vary the relay valve ratio continouously; instead, it changes to loaded if more than 25% cargo is present
+                    if (BrakeSystem is AirSinglePipe brakes)
+                    {
+                        brakes.RelayValveRatio = TempMassDiffRatio > 0.25f ? LoadFullRelayValveRatio : LoadEmptyRelayValveRatio;
+                        brakes.RelayValveInshotPSI = TempMassDiffRatio > 0.25f ? LoadFullInshotPSI : LoadEmptyInshotPSI;
+                    }
 
                     // Update friction related parameters
                     DavisAN = ((LoadFullORTSDavis_A - LoadEmptyORTSDavis_A) * TempMassDiffRatio) + LoadEmptyORTSDavis_A;
@@ -1025,6 +1094,11 @@ namespace Orts.Simulation.RollingStocks
                         // Update brake physics
                         MaxBrakeForceN = LoadEmptyMaxBrakeForceN;
                         MaxHandbrakeForceN = LoadEmptyMaxHandbrakeForceN;
+                        if (BrakeSystem is AirSinglePipe brakes)
+                        {
+                            brakes.RelayValveRatio = LoadEmptyRelayValveRatio;
+                            brakes.RelayValveInshotPSI = LoadEmptyInshotPSI;
+                        }
 
                         // Update friction related parameters
                         DavisAN = LoadEmptyORTSDavis_A;
@@ -1308,6 +1382,9 @@ namespace Orts.Simulation.RollingStocks
                             case "manual_brake": ManualBrakePresent = true; break;
                             case "retainer_3_position": RetainerPositions = 3; break;
                             case "retainer_4_position": RetainerPositions = 4; break;
+                            case "supply_reservoir":
+                                SupplyReservoirPresent = true;
+                                break;
                         }
                     }
                     break;
@@ -1619,6 +1696,7 @@ namespace Orts.Simulation.RollingStocks
             MaxBrakeShoeForceN = copy.MaxBrakeShoeForceN;
             NumberCarBrakeShoes = copy.NumberCarBrakeShoes;
             MaxHandbrakeForceN = copy.MaxHandbrakeForceN;
+            FrictionBrakeBlendingMaxForceN = copy.FrictionBrakeBlendingMaxForceN;
             WindowDeratingFactor = copy.WindowDeratingFactor;
             DesiredCompartmentTempSetpointC = copy.DesiredCompartmentTempSetpointC;
             CompartmentHeatingPipeAreaFactor = copy.CompartmentHeatingPipeAreaFactor;
@@ -1658,6 +1736,7 @@ namespace Orts.Simulation.RollingStocks
             HandBrakePresent = copy.HandBrakePresent;
             ManualBrakePresent = copy.ManualBrakePresent;
             AuxiliaryReservoirPresent = copy.AuxiliaryReservoirPresent;
+            SupplyReservoirPresent = copy.SupplyReservoirPresent;
             RetainerPositions = copy.RetainerPositions;
             InteriorShapeFileName = copy.InteriorShapeFileName;
             InteriorSoundFileName = copy.InteriorSoundFileName;
@@ -1705,6 +1784,8 @@ namespace Orts.Simulation.RollingStocks
             LoadEmptyORTSDavis_C = copy.LoadEmptyORTSDavis_C;
             LoadEmptyDavisDragConstant = copy.LoadEmptyDavisDragConstant;
             LoadEmptyWagonFrontalAreaM2 = copy.LoadEmptyWagonFrontalAreaM2;
+            LoadEmptyRelayValveRatio = copy.LoadEmptyRelayValveRatio;
+            LoadEmptyInshotPSI = copy.LoadEmptyInshotPSI;
             LoadFullMassKg = copy.LoadFullMassKg;
             LoadFullCentreOfGravityM_Y = copy.LoadFullCentreOfGravityM_Y;
             LoadFullMaxBrakeForceN = copy.LoadFullMaxBrakeForceN;
@@ -1714,6 +1795,8 @@ namespace Orts.Simulation.RollingStocks
             LoadFullORTSDavis_C = copy.LoadFullORTSDavis_C;
             LoadFullDavisDragConstant = copy.LoadFullDavisDragConstant;
             LoadFullWagonFrontalAreaM2 = copy.LoadFullWagonFrontalAreaM2;
+            LoadFullRelayValveRatio = copy.LoadFullRelayValveRatio;
+            LoadFullInshotPSI = copy.LoadFullInshotPSI;
 
             if (copy.IntakePointList != null)
             {
@@ -1863,7 +1946,7 @@ namespace Orts.Simulation.RollingStocks
 
             outf.Write(WheelBrakeSlideProtectionActive);
             outf.Write(WheelBrakeSlideProtectionTimerS);
-            outf.Write(AngleOfAttackRad);
+            outf.Write(AngleOfAttackmRad);
             outf.Write(DerailClimbDistanceM);
             outf.Write(DerailPossible);
             outf.Write(DerailExpected);
@@ -1920,7 +2003,7 @@ namespace Orts.Simulation.RollingStocks
 
             WheelBrakeSlideProtectionActive = inf.ReadBoolean();
             WheelBrakeSlideProtectionTimerS = inf.ReadInt32();
-            AngleOfAttackRad = inf.ReadSingle();
+            AngleOfAttackmRad = inf.ReadSingle();
             DerailClimbDistanceM = inf.ReadSingle();
             DerailPossible = inf.ReadBoolean();
             DerailExpected = inf.ReadBoolean();
@@ -2105,6 +2188,12 @@ namespace Orts.Simulation.RollingStocks
                         // Update brake parameters
                         MaxBrakeForceN = ((LoadFullMaxBrakeForceN - LoadEmptyMaxBrakeForceN) * TempMassDiffRatio) + LoadEmptyMaxBrakeForceN;
                         MaxHandbrakeForceN = ((LoadFullMaxHandbrakeForceN - LoadEmptyMaxHandbrakeForceN) * TempMassDiffRatio) + LoadEmptyMaxHandbrakeForceN;
+                        // Not sensible to vary the relay valve ratio continouously; instead, it changes to loaded if more than 25% cargo is present
+                        if (BrakeSystem is AirSinglePipe brakes)
+                        {
+                            brakes.RelayValveRatio = TempMassDiffRatio > 0.25f ? LoadFullRelayValveRatio : LoadEmptyRelayValveRatio;
+                            brakes.RelayValveInshotPSI = TempMassDiffRatio > 0.25f ? LoadFullInshotPSI : LoadEmptyInshotPSI;
+                        }
                         // Update friction related parameters
                         DavisAN = ((LoadFullORTSDavis_A - LoadEmptyORTSDavis_A) * TempMassDiffRatio) + LoadEmptyORTSDavis_A;
                         DavisBNSpM = ((LoadFullORTSDavis_B - LoadEmptyORTSDavis_B) * TempMassDiffRatio) + LoadEmptyORTSDavis_B;
@@ -2212,6 +2301,12 @@ namespace Orts.Simulation.RollingStocks
                         // Update brake parameters
                         MaxBrakeForceN = ((LoadFullMaxBrakeForceN - LoadEmptyMaxBrakeForceN) * TempMassDiffRatio) + LoadEmptyMaxBrakeForceN;
                         MaxHandbrakeForceN = ((LoadFullMaxHandbrakeForceN - LoadEmptyMaxHandbrakeForceN) * TempMassDiffRatio) + LoadEmptyMaxHandbrakeForceN;
+                        // Not sensible to vary the relay valve ratio continouously; instead, it changes to loaded if more than 25% cargo is present
+                        if (BrakeSystem is AirSinglePipe brakes)
+                        {
+                            brakes.RelayValveRatio = TempMassDiffRatio > 0.25f ? LoadFullRelayValveRatio : LoadEmptyRelayValveRatio;
+                            brakes.RelayValveInshotPSI = TempMassDiffRatio > 0.25f ? LoadFullInshotPSI : LoadEmptyInshotPSI;
+                        }
                         // Update friction related parameters
                         DavisAN = ((LoadFullORTSDavis_A - LoadEmptyORTSDavis_A) * TempMassDiffRatio) + LoadEmptyORTSDavis_A;
                         DavisBNSpM = ((LoadFullORTSDavis_B - LoadEmptyORTSDavis_B) * TempMassDiffRatio) + LoadEmptyORTSDavis_B;
@@ -2258,6 +2353,12 @@ namespace Orts.Simulation.RollingStocks
                         // Update brake parameters
                         MaxBrakeForceN = ((LoadFullMaxBrakeForceN - LoadEmptyMaxBrakeForceN) * TempMassDiffRatio) + LoadEmptyMaxBrakeForceN;
                         MaxHandbrakeForceN = ((LoadFullMaxHandbrakeForceN - LoadEmptyMaxHandbrakeForceN) * TempMassDiffRatio) + LoadEmptyMaxHandbrakeForceN;
+                        // Not sensible to vary the relay valve ratio continouously; instead, it changes to loaded if more than 25% cargo is present
+                        if (BrakeSystem is AirSinglePipe brakes)
+                        {
+                            brakes.RelayValveRatio = TempMassDiffRatio > 0.25f ? LoadFullRelayValveRatio : LoadEmptyRelayValveRatio;
+                            brakes.RelayValveInshotPSI = TempMassDiffRatio > 0.25f ? LoadFullInshotPSI : LoadEmptyInshotPSI;
+                        }
                         // Update friction related parameters
                         DavisAN = ((LoadFullORTSDavis_A - LoadEmptyORTSDavis_A) * TempMassDiffRatio) + LoadEmptyORTSDavis_A;
                         DavisBNSpM = ((LoadFullORTSDavis_B - LoadEmptyORTSDavis_B) * TempMassDiffRatio) + LoadEmptyORTSDavis_B;
@@ -3046,130 +3147,129 @@ namespace Orts.Simulation.RollingStocks
             // Lateral resistance - due to wheel flange being pushed against rail due to side wind.
             // Calculation based upon information provided in AREA 1942 Proceedings - https://archive.org/details/proceedingsofann431942amer - pg 56
 
-            if (!CarTunnelData.FrontPositionBeyondStartOfTunnel.HasValue && AbsSpeedMpS > 2.2352) // Only calculate wind resistance if option selected in options menu, and not in a tunnel, and speed is sufficient for wind effects (>5mph)
+            // Only calculate wind resistance if option selected in options menu, and not in a tunnel, and speed is sufficient for wind effects (>5mph)
+            if (!CarTunnelData.FrontPositionBeyondStartOfTunnel.HasValue && AbsSpeedMpS > 2.2352)
             {
-
                 // Wagon Direction
-                float direction = (float)Math.Atan2(WorldPosition.XNAMatrix.M13, WorldPosition.XNAMatrix.M11);
-                WagonDirectionDeg = MathHelper.ToDegrees((float)direction);
+                var directionRad = (float)Math.Atan2(WorldPosition.XNAMatrix.M13, WorldPosition.XNAMatrix.M11);
+                var directionDeg = MathHelper.ToDegrees(directionRad);
 
                 // If car is flipped, then the car's direction will be reversed by 180 compared to the rest of the train, and thus for calculation purposes only, 
                 // it is necessary to reverse the "assumed" direction of the car back again. This shouldn't impact the visual appearance of the car.
                 if (Flipped)
                 {
-                    WagonDirectionDeg += 180.0f; // Reverse direction of car
-                    if (WagonDirectionDeg > 360) // If this results in an angle greater then 360, then convert it back to an angle between 0 & 360.
-                    {
-                        WagonDirectionDeg -= 360;
-                    }
+                    // Reverse direction of car
+                    directionDeg += 180.0f;
+
+                    // If this results in an angle greater then 360, then convert it back to an angle between 0 & 360.
+                    if (directionDeg > 360)
+                        directionDeg -= 360;
                 }                   
 
                 // If a westerly direction (ie -ve) convert to an angle between 0 and 360
-                if (WagonDirectionDeg < 0)
-                    WagonDirectionDeg += 360;
-
-                float TrainSpeedMpS = Math.Abs(SpeedMpS);
+                if (directionDeg < 0)
+                    directionDeg += 360;
                 
                 // Find angle between wind and direction of train
-                if (Train.PhysicsWindDirectionDeg > WagonDirectionDeg)
-                    WagonResultantWindComponentDeg = Train.PhysicsWindDirectionDeg - WagonDirectionDeg;
-                else if (WagonDirectionDeg > Train.PhysicsWindDirectionDeg)
-                    WagonResultantWindComponentDeg = WagonDirectionDeg - Train.PhysicsWindDirectionDeg;
-                else
-                    WagonResultantWindComponentDeg = 0.0f;
+                var resultantWindComponentDeg = 0.0f;
+                if (Train.PhysicsWindDirectionDeg > directionDeg)
+                    resultantWindComponentDeg = Train.PhysicsWindDirectionDeg - directionDeg;
+                else if (directionDeg > Train.PhysicsWindDirectionDeg)
+                    resultantWindComponentDeg = directionDeg - Train.PhysicsWindDirectionDeg;
 
                 // Correct wind direction if it is greater then 360 deg, then correct to a value less then 360
-                if (Math.Abs(WagonResultantWindComponentDeg) > 360)
-                    WagonResultantWindComponentDeg = WagonResultantWindComponentDeg - 360.0f;
+                if (Math.Abs(resultantWindComponentDeg) > 360)
+                    resultantWindComponentDeg -= 360.0f;
 
                 // Wind angle should be kept between 0 and 180 the formulas do not cope with angles > 180. If angle > 180, denotes wind of "other" side of train
-                if (WagonResultantWindComponentDeg > 180)
-                    WagonResultantWindComponentDeg = 360 - WagonResultantWindComponentDeg;
+                if (resultantWindComponentDeg > 180)
+                    resultantWindComponentDeg = 360 - resultantWindComponentDeg;
 
-                float ResultantWindComponentRad = MathHelper.ToRadians(WagonResultantWindComponentDeg);
+                var resultantWindComponentRad = MathHelper.ToRadians(resultantWindComponentDeg);
 
                 // Find the resultand wind vector for the combination of wind and train speed
-                WagonWindResultantSpeedMpS = (float)Math.Sqrt(TrainSpeedMpS * TrainSpeedMpS + Train.PhysicsWindSpeedMpS * Train.PhysicsWindSpeedMpS + 2.0f * TrainSpeedMpS * Train.PhysicsWindSpeedMpS * (float)Math.Cos(ResultantWindComponentRad));
+                var windResultantSpeedMpS = (float)Math.Sqrt(AbsSpeedMpS * AbsSpeedMpS + Train.PhysicsWindSpeedMpS * Train.PhysicsWindSpeedMpS + 2.0f * AbsSpeedMpS * Train.PhysicsWindSpeedMpS * (float)Math.Cos(resultantWindComponentRad));
 
                 // Calculate Drag Resistance
                 // The drag resistance will be the difference between the STILL firction calculated using the standard Davies equation, 
                 // and that produced using the wind resultant speed (combination of wind speed and train speed)
-                float TempStillDragResistanceForceN = AbsSpeedMpS * AbsSpeedMpS * DavisCNSSpMM;
-                float TempCombinedDragResistanceForceN = WagonWindResultantSpeedMpS * WagonWindResultantSpeedMpS * DavisCNSSpMM; // R3 of Davis formula taking into account wind
-                float WindDragResistanceForceN = 0.0f;
+                var tempStillDragResistanceForceN = AbsSpeedMpS * AbsSpeedMpS * DavisCNSSpMM;
+                var tempCombinedDragResistanceForceN = windResultantSpeedMpS * windResultantSpeedMpS * DavisCNSSpMM; // R3 of Davis formula taking into account wind
+                float windDragResistanceForceN;
 
                 // Find the difference between the Still and combined resistances
                 // This difference will be added or subtracted from the overall friction force depending upon the estimated wind direction.
+                if (tempCombinedDragResistanceForceN > tempStillDragResistanceForceN)
+                {
                 // Wind typically headon to train - increase resistance - +ve differential
-                if (TempCombinedDragResistanceForceN > TempStillDragResistanceForceN)
-                {
-                    WindDragResistanceForceN = TempCombinedDragResistanceForceN - TempStillDragResistanceForceN;
+                    windDragResistanceForceN = tempCombinedDragResistanceForceN - tempStillDragResistanceForceN;
                 }
-                else // wind typically following train - reduce resistance - -ve differential
+                else
                 {
-                    WindDragResistanceForceN = TempStillDragResistanceForceN - TempCombinedDragResistanceForceN;
-                    WindDragResistanceForceN *= -1.0f;  // Convert to negative number to allow subtraction from ForceN
+                    // Wind typically following train - reduce resistance - -ve differential
+                    windDragResistanceForceN = tempStillDragResistanceForceN - tempCombinedDragResistanceForceN;
+                    windDragResistanceForceN *= -1.0f;  // Convert to negative number to allow subtraction from ForceN
                 }
 
                 // Calculate Lateral Resistance
 
                 // Calculate lateral resistance due to wind
                 // Resistance is due to the wheel flanges being pushed further onto rails when a cross wind is experienced by a train
-                float A = Train.PhysicsWindSpeedMpS / AbsSpeedMpS;
-                float C = (float)Math.Sqrt((1 + (A * A) + 2.0f * A * Math.Cos(ResultantWindComponentRad)));
-                float WindConstant = 8.25f;
-                float TrainSpeedMpH = Me.ToMi(pS.TopH(AbsSpeedMpS));
-                float WindSpeedMpH = Me.ToMi(pS.TopH(Train.PhysicsWindSpeedMpS));
+                var a = Train.PhysicsWindSpeedMpS / AbsSpeedMpS;
+                var c = (float)Math.Sqrt((1 + (a * a) + 2.0f * a * Math.Cos(resultantWindComponentRad)));
+                var windConstant = 8.25f;
+                var speedMpH = Me.ToMi(pS.TopH(AbsSpeedMpS));
 
-                float WagonFrontalAreaFt2 = Me2.ToFt2(WagonFrontalAreaM2);
+                var wagonFrontalAreaFt2 = Me2.ToFt2(WagonFrontalAreaM2);
 
-                LateralWindForceN = N.FromLbf(WindConstant * A * (float)Math.Sin(ResultantWindComponentRad) * DavisDragConstant * WagonFrontalAreaFt2 * TrainSpeedMpH * TrainSpeedMpH * C);
+                LateralWindForceN = N.FromLbf(windConstant * a * (float)Math.Sin(resultantWindComponentRad) * DavisDragConstant * wagonFrontalAreaFt2 * speedMpH * speedMpH * c);
 
-                float LateralWindResistanceForceN = N.FromLbf(WindConstant * A * (float)Math.Sin(ResultantWindComponentRad) * DavisDragConstant * WagonFrontalAreaFt2 * TrainSpeedMpH * TrainSpeedMpH * C * Train.WagonCoefficientFriction);
+                var lateralWindResistanceForceN = N.FromLbf(windConstant * a * (float)Math.Sin(resultantWindComponentRad) * DavisDragConstant * wagonFrontalAreaFt2 * speedMpH * speedMpH * c * Train.WagonCoefficientFriction);
 
                 // if this car is a locomotive, but not the lead one then recalculate the resistance with lower C value as drag will not be as high on trailing locomotives
                 if (WagonType == WagonTypes.Engine && Train.LeadLocomotive != this)
                 {
-                    LateralWindResistanceForceN *= TrailLocoResistanceFactor;
+                    lateralWindResistanceForceN *= TrailLocoResistanceFactor;
                 }
 
                 // Test to identify whether a tender is attached to the leading engine, if not then the resistance should also be derated as for the locomotive
-                bool IsLeadTender = false;
+                var isLeadTender = false;
                 if (WagonType == WagonTypes.Tender)
                 {
-                    bool PrevCarLead = false;
+                    var prevCarLead = false;
                     foreach (var car in Train.Cars)
                     {
                         // If this car is a tender and the previous car is the lead locomotive then set the flag so that resistance will be reduced
-                        if (car == this && PrevCarLead)
+                        if (car == this && prevCarLead)
                         {
-                            IsLeadTender = true;
+                            isLeadTender = true;
                             break;  // If the tender has been identified then break out of the loop, otherwise keep going until whole train is done.
                         }
+
                         // Identify whether car is a lead locomotive or not. This is kept for when the next iteration (next car) is checked.
                         if (Train.LeadLocomotive == car)
                         {
-                            PrevCarLead = true;
+                            prevCarLead = true;
                         }
                         else
                         {
-                            PrevCarLead = false;
+                            prevCarLead = false;
                         }
                     }
 
                     // If tender is coupled to a trailing locomotive then reduce resistance
-                    if (!IsLeadTender)
+                    if (!isLeadTender)
                     {
-                        LateralWindResistanceForceN *= TrailLocoResistanceFactor;
+                        lateralWindResistanceForceN *= TrailLocoResistanceFactor;
                     }
                 }
-                WindForceN = LateralWindResistanceForceN + WindDragResistanceForceN;
+
+                WindForceN = lateralWindResistanceForceN + windDragResistanceForceN;
             }
             else
             {
                 WindForceN = 0.0f; // Set to zero if wind resistance is not to be calculated
             }
-
         }
 
         private void UpdateTenderLoad()
@@ -3200,6 +3300,12 @@ namespace Orts.Simulation.RollingStocks
                     // Update brake parameters
                     MaxBrakeForceN = ((LoadFullMaxBrakeForceN - LoadEmptyMaxBrakeForceN) * TempTenderMassDiffRatio) + LoadEmptyMaxBrakeForceN;
                     MaxHandbrakeForceN = ((LoadFullMaxHandbrakeForceN - LoadEmptyMaxHandbrakeForceN) * TempTenderMassDiffRatio) + LoadEmptyMaxHandbrakeForceN;
+                    // Not sensible to vary the relay valve ratio continouously; instead, it changes to loaded if more than 25% cargo is present
+                    if (BrakeSystem is AirSinglePipe brakes)
+                    {
+                        brakes.RelayValveRatio = TempTenderMassDiffRatio > 0.25f ? LoadFullRelayValveRatio : LoadEmptyRelayValveRatio;
+                        brakes.RelayValveInshotPSI = TempTenderMassDiffRatio > 0.25f ? LoadFullInshotPSI : LoadEmptyInshotPSI;
+                    }
                     // Update friction related parameters
                     DavisAN = ((LoadFullORTSDavis_A - LoadEmptyORTSDavis_A) * TempTenderMassDiffRatio) + LoadEmptyORTSDavis_A;
                     DavisBNSpM = ((LoadFullORTSDavis_B - LoadEmptyORTSDavis_B) * TempTenderMassDiffRatio) + LoadEmptyORTSDavis_B;
@@ -3233,6 +3339,12 @@ namespace Orts.Simulation.RollingStocks
                     // Update brake parameters
                     MaxBrakeForceN = ((LoadFullMaxBrakeForceN - LoadEmptyMaxBrakeForceN) * TempTenderMassDiffRatio) + LoadEmptyMaxBrakeForceN;
                     MaxHandbrakeForceN = ((LoadFullMaxHandbrakeForceN - LoadEmptyMaxHandbrakeForceN) * TempTenderMassDiffRatio) + LoadEmptyMaxHandbrakeForceN;
+                    // Not sensible to vary the relay valve ratio continouously; instead, it changes to loaded if more than 25% cargo is present
+                    if (BrakeSystem is AirSinglePipe brakes)
+                    {
+                        brakes.RelayValveRatio = TempTenderMassDiffRatio > 0.25f ? LoadFullRelayValveRatio : LoadEmptyRelayValveRatio;
+                        brakes.RelayValveInshotPSI = TempTenderMassDiffRatio > 0.25f ? LoadFullInshotPSI : LoadEmptyInshotPSI;
+                    }
                     // Update friction related parameters
                     DavisAN = ((LoadFullORTSDavis_A - LoadEmptyORTSDavis_A) * TempTenderMassDiffRatio) + LoadEmptyORTSDavis_A;
                     DavisBNSpM = ((LoadFullORTSDavis_B - LoadEmptyORTSDavis_B) * TempTenderMassDiffRatio) + LoadEmptyORTSDavis_B;
