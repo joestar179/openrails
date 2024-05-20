@@ -367,9 +367,9 @@ namespace Orts.Simulation.Simulation.RollingStocks.SubSystems.PowerSupplies
         public float MaxIndicatedHorsePowerHP;
 
         /// <summary>
-        /// Steam Engine unbalanced mass on wheels - per side. Typically called Excess or overbalance of rods 
+        /// Steam Engine unbalanced mass on wheels - per side. 
         /// </summary>
-        public float ExcessRodBalanceLbs;
+        public float ExcessWheelBalanceLbs;
 
         /// <summary>
         /// Steam Engine unbalanced wheel warning. 
@@ -719,9 +719,9 @@ namespace Orts.Simulation.Simulation.RollingStocks.SubSystems.PowerSupplies
                         MaxIndicatedHorsePowerHP = stf.ReadFloatBlock(STFReader.UNITS.Power, null);
                         MaxIndicatedHorsePowerHP = W.ToHp(MaxIndicatedHorsePowerHP);  // Convert input to HP for use internally in this module
                         break;
-                    case "excessrodbalance":
+                    case "excesswheelbalance":
                         var excess = stf.ReadFloatBlock(STFReader.UNITS.Mass, null);
-                        ExcessRodBalanceLbs = Kg.ToLb(excess);  // Convert input to lbs for use internally in this module
+                        ExcessWheelBalanceLbs = Kg.ToLb(excess);  // Convert input to lbs for use internally in this module
                         break;
 
                     case "auxiliarysteamenginetype":
@@ -755,7 +755,7 @@ namespace Orts.Simulation.Simulation.RollingStocks.SubSystems.PowerSupplies
             LPCylindersDiameterM = other.LPCylindersDiameterM;
             BoosterCutoff = other.BoosterCutoff;
             MaxIndicatedHorsePowerHP = other.MaxIndicatedHorsePowerHP;
-            ExcessRodBalanceLbs = other.ExcessRodBalanceLbs;
+            ExcessWheelBalanceLbs = other.ExcessWheelBalanceLbs;
             BoosterThrottleCutoff = other.BoosterThrottleCutoff;
             BoosterGearRatio = other.BoosterGearRatio;
             AttachedAxleId = other.AttachedAxleId;

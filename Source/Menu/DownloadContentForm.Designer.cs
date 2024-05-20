@@ -124,7 +124,6 @@ namespace ORTS
             this.InstallPathTextBox.Name = "InstallPathTextBox";
             this.InstallPathTextBox.Size = new System.Drawing.Size(445, 20);
             this.InstallPathTextBox.TabIndex = 2;
-            this.InstallPathTextBox.TextChanged += new System.EventHandler(this.InstallPathTextBox_TextChanged);
             // 
             // InstallPathBrowseButton
             // 

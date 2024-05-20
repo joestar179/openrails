@@ -39,7 +39,6 @@ namespace ORTS.Settings
         public class Start
         {
             public string Route;
-            public string Activity;
             public string Locomotive;
             public string Consist;
             public string StartingAt;
@@ -206,7 +205,6 @@ namespace ORTS.Settings
                         Start start = new Start
                         {
                             Route = convertResultToString(startToken, "route"),
-                            Activity = convertResultToString(startToken,"activity"),
                             Locomotive = convertResultToString(startToken, "locomotive"),
                             Consist = convertResultToString(startToken, "consist"),
                             StartingAt = convertResultToString(startToken, "startingat"),

@@ -102,7 +102,8 @@ namespace Orts.Viewer3D
             foreach (var car in cars.Values)
             {
                 car.Mark();
-                car.lightDrawer?.Mark();
+                if (car.lightDrawer != null)
+                    car.lightDrawer.Mark();
             }
             CABTextureManager.Mark(Viewer);
         }
@@ -133,7 +134,7 @@ namespace Orts.Viewer3D
             var visibleCars = new List<TrainCar>();
             var removeDistance = Viewer.Settings.ViewingDistance * 1.5f;
             if (Viewer.PlayerLocomotive != null)
-            visibleCars.Add(Viewer.PlayerLocomotive);
+                visibleCars.Add(Viewer.PlayerLocomotive);
             foreach (var train in Viewer.Simulator.Trains)
                 foreach (var car in train.Cars)
                     if (WorldLocation.ApproximateDistance(Viewer.Camera.CameraWorldLocation, car.WorldPosition.WorldLocation) < removeDistance && car != Viewer.PlayerLocomotive)
@@ -150,7 +151,8 @@ namespace Orts.Viewer3D
                 car.PrepareFrame(frame, elapsedTime);
             // Do the lights separately for proper alpha sorting
             foreach (var car in cars.Values)
-                car.lightDrawer?.PrepareFrame(frame, elapsedTime);
+                if (car.lightDrawer != null)
+                    car.lightDrawer.PrepareFrame(frame, elapsedTime);
         }
 
         TrainCarViewer LoadCar(TrainCar car)
@@ -163,8 +165,7 @@ namespace Orts.Viewer3D
                 car is MSTSLocomotive ? new MSTSLocomotiveViewer(Viewer, car as MSTSLocomotive) :
                 car is MSTSWagon ? new MSTSWagonViewer(Viewer, car as MSTSWagon) :
                 null;
-            if (car.Lights != null) // Don't make a light viewer when there are no lights
-                carViewer.lightDrawer = new LightViewer(Viewer, car, carViewer);
+            carViewer.lightDrawer = new LightViewer(Viewer, car);
             return carViewer;
         }
     }

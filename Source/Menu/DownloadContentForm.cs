@@ -46,8 +46,6 @@ namespace ORTS
         private Thread ImageThread;
         private readonly string InfoTempFilename;
 
-        private bool ClosingBlocked;
-
         //attribute used to refresh UI
         private readonly SynchronizationContext SynchronizationContext;
 
@@ -142,13 +140,6 @@ namespace ORTS
         }
         #endregion
 
-        #region InstallPathTextBox
-        private void InstallPathTextBox_TextChanged(object sender, EventArgs e)
-        {
-            Settings.Content.InstallPath = InstallPathTextBox.Text;
-        }
-        #endregion
-
         #region InstallPathBrowseButton
         private void InstallPathBrowseButton_Click(object sender, EventArgs e)
         {
@@ -182,14 +173,6 @@ namespace ORTS
 
             DisableButtons();
 
-            message = Catalog.GetStringFmt("Route to be installed in \"{0}\", are you sure?", installPathRoute);
-            if (MessageBox.Show(message, Catalog.GetString("Attention"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
-            {
-                // cancelled
-                EnableButtons();
-                return;
-            }
-
             // various checks for the directory where the route is installed
 
             string pathDirectoryExe = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().GetName().CodeBase);
@@ -206,33 +189,39 @@ namespace ORTS
                 return;
             }
 
-            try
+            DriveInfo dInfo = new DriveInfo(installPathRoute);
+
+            long size = route.InstallSize + route.DownloadSize;
+
+            if (size > (dInfo.AvailableFreeSpace * 1.1))
             {
-                DriveInfo dInfo = new DriveInfo(installPathRoute);
+                message = Catalog.GetStringFmt("Not enough diskspace on drive {0} ({1}), available {2} kB, needed {3} kB, still continue?",
+                    dInfo.Name,
+                    dInfo.VolumeLabel,
+                    (dInfo.AvailableFreeSpace / 1024).ToString("N0"),
+                    (size / 1024).ToString("N0"));
 
-                long size = route.InstallSize + route.DownloadSize;
-
-                if (size > (dInfo.AvailableFreeSpace * 1.1))
+                if (MessageBox.Show(message, Catalog.GetString("Attention"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK)
                 {
-                    message = Catalog.GetStringFmt("Not enough diskspace on drive {0} ({1}), available {2} kB, needed {3} kB, still continue?",
-                        dInfo.Name,
-                        dInfo.VolumeLabel,
-                        (dInfo.AvailableFreeSpace / 1024).ToString("N0"),
-                        (size / 1024).ToString("N0"));
-
-                    if (MessageBox.Show(message, Catalog.GetString("Attention"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
-                    {
-                        // cancelled
-                        EnableButtons();
-                        return;
-                    }
+                    // cancelled
+                    EnableButtons();
+                    return;
                 }
             }
-            catch (System.IO.DriveNotFoundException)
+
+            message = Catalog.GetStringFmt("Route to be installed in \"{0}\", are you sure?", installPathRoute);
+
+            if (MessageBox.Show(message, Catalog.GetString("Attention"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK)
             {
-                message = Catalog.GetStringFmt("Drive not available");
-                MessageBox.Show(message, Catalog.GetString("Attention"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 // cancelled
+                EnableButtons();
+                return;
+            }
+
+            if (!Directory.Exists(installPath))
+            {
+                message = Catalog.GetStringFmt("Directory \"{0}\" does not exist", installPath);
+                MessageBox.Show(message, Catalog.GetString("Attention"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 EnableButtons();
                 return;
             }
@@ -263,6 +252,8 @@ namespace ORTS
                     return;
                 }
             }
+
+            Settings.Content.InstallPath = installPath;
 
             // the download
 
@@ -770,22 +761,20 @@ namespace ORTS
                 mainForm.radioButtonModeActivity.Checked = true;
 
                 mainForm.LoadActivityList();
-                mainForm.comboBoxActivity.SelectedIndex = determineSelectedIndex(mainForm.comboBoxActivity, route.Start.Activity);
+                // hardcoded: + Explore in Activity Mode +
+                mainForm.comboBoxActivity.SelectedIndex = 1;
 
-                if ((route.Start.Activity == "- Explore Route -") || (route.Start.Activity == "+ Explore in Activity Mode +"))
-                {
-                    mainForm.LoadLocomotiveList();
-                    mainForm.comboBoxLocomotive.SelectedIndex = determineSelectedIndex(mainForm.comboBoxLocomotive, route.Start.Locomotive);
-                    mainForm.comboBoxConsist.SelectedIndex = determineSelectedIndex(mainForm.comboBoxConsist, route.Start.Consist);
+                mainForm.LoadLocomotiveList();
+                mainForm.comboBoxLocomotive.SelectedIndex = determineSelectedIndex(mainForm.comboBoxLocomotive, route.Start.Locomotive);
+                mainForm.comboBoxConsist.SelectedIndex = determineSelectedIndex(mainForm.comboBoxConsist, route.Start.Consist);
 
-                    mainForm.LoadStartAtList();
-                    mainForm.comboBoxStartAt.SelectedIndex = determineSelectedIndex(mainForm.comboBoxStartAt, route.Start.StartingAt);
-                    mainForm.comboBoxHeadTo.SelectedIndex = determineSelectedIndex(mainForm.comboBoxHeadTo, route.Start.HeadingTo);
+                mainForm.LoadStartAtList();
+                mainForm.comboBoxStartAt.SelectedIndex = determineSelectedIndex(mainForm.comboBoxStartAt, route.Start.StartingAt);
+                mainForm.comboBoxHeadTo.SelectedIndex = determineSelectedIndex(mainForm.comboBoxHeadTo, route.Start.HeadingTo);
 
-                    mainForm.comboBoxStartTime.Text = route.Start.Time;
-                    mainForm.comboBoxStartSeason.SelectedIndex = determineSelectedIndex(mainForm.comboBoxStartSeason, route.Start.Season);
-                    mainForm.comboBoxStartWeather.SelectedIndex = determineSelectedIndex(mainForm.comboBoxStartWeather, route.Start.Weather);
-                }
+                mainForm.comboBoxStartTime.SelectedIndex = determineSelectedIndex(mainForm.comboBoxStartTime, route.Start.Time);
+                mainForm.comboBoxStartSeason.SelectedIndex = determineSelectedIndex(mainForm.comboBoxStartSeason, route.Start.Season);
+                mainForm.comboBoxStartWeather.SelectedIndex = determineSelectedIndex(mainForm.comboBoxStartWeather, route.Start.Weather);
             }
             catch (StartNotFound error)
             {
@@ -798,9 +787,6 @@ namespace ORTS
                 // close this dialog
                 DialogResult = DialogResult.OK;
 
-                setCursorToDefaultCursor();
-                ClosingBlocked = false;
-
                 return;
             }
 
@@ -812,7 +798,7 @@ namespace ORTS
             // close the MainForm dialog, starts OR
             Owner.DialogResult = DialogResult.OK;
 
-            ClosingBlocked = false;
+            EnableButtons();
         }
 
         private int determineSelectedIndex(ComboBox comboBox, string compareWith)
@@ -830,20 +816,6 @@ namespace ORTS
                 throw new StartNotFound(Catalog.GetStringFmt(compareWith));
             }
 
-            if ((classOfItem == "DefaultExploreActivity") && (compareWith == "- Explore Route -"))
-            {
-                // "- Explore Route -" gets translated,
-                // so it might not be found in the combobox
-                found = true;
-                index = 0;
-            }
-            if ((classOfItem == "DefaultExploreActivity") && (compareWith == "+ Explore in Activity Mode +"))
-            {
-                // "+ Explore in Activity Mode +" gets translated
-                found = true;
-                index = 1;
-            }
-
             while (!found && (index < comboBox.Items.Count))
             {
                 string comboboxName = "";
@@ -855,9 +827,6 @@ namespace ORTS
                     case "Route":
                         comboboxName = ((Menu.Route)comboBox.Items[index]).Name;
                         break;
-                    case "DefaultExploreActivity":
-                        comboboxName = ((Menu.Activity)comboBox.Items[index]).Name;
-                        break;
                     case "Locomotive":
                         comboboxName = ((Menu.Locomotive)comboBox.Items[index]).Name;
                         break;
@@ -865,7 +834,7 @@ namespace ORTS
                         comboboxName = ((Menu.Consist)comboBox.Items[index]).Name;
                         break;
                     case "String":
-                        comboboxName = (string)comboBox.Items[index];
+                        comboboxName = (String)comboBox.Items[index];
                         break;
                     case "Path":
                         comboboxName = ((Menu.Path)comboBox.Items[index]).End;
@@ -890,23 +859,7 @@ namespace ORTS
             }
             else
             {
-                if (classOfItem == "Route")
-                {
-                    // if a route is not found and amount of routes is 1
-                    // then default to this one and only route
-                    if (comboBox.Items.Count == 1)
-                    {
-                        index = 0;
-                    }
-                    else
-                    {
-                        throw new StartNotFound(Catalog.GetStringFmt(compareWith));
-                    }
-                }
-                else
-                {
-                    throw new StartNotFound(Catalog.GetStringFmt(compareWith));
-                }
+                throw new StartNotFound(Catalog.GetStringFmt(compareWith));
             }
 
             return index;
@@ -929,7 +882,7 @@ namespace ORTS
             DisableButtons();
 
             message = Catalog.GetStringFmt("Directory \"{0}\" is to be deleted, are you really sure?", route.DirectoryInstalledIn);
-            if (MessageBox.Show(message, Catalog.GetString("Attention"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+            if (MessageBox.Show(message, Catalog.GetString("Attention"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.OK)
             {
                 // cancelled
                 EnableButtons();
@@ -942,7 +895,7 @@ namespace ORTS
                 {
                     writeAndStartInfoFile();
                     message = Catalog.GetStringFmt("Changed or added local files found in Directory \"{0}\", see Info at the bottom for more information. Do you want to continue?", route.DirectoryInstalledIn);
-                    if (MessageBox.Show(message, Catalog.GetString("Attention"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+                    if (MessageBox.Show(message, Catalog.GetString("Attention"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.OK)
                     {
                         // cancelled
                         EnableButtons();
@@ -995,7 +948,7 @@ namespace ORTS
                     }), (TotalBytes / 1024).ToString("N0"));
                 }
 
-                while (deleteThread.IsAlive && (sw.ElapsedMilliseconds <= 1000)) { }
+                while ((deleteThread.IsAlive) && (sw.ElapsedMilliseconds <= 1000)) { }
             }
         }
         #endregion
@@ -1006,14 +959,12 @@ namespace ORTS
             ContentRouteSettings.Route route = Routes[RouteName];
             string message;
 
-            DisableButtons();
-
             List<string> commitStrings = getCommits(route.DirectoryInstalledIn);
             if (commitStrings.Count > 0)
             {
                 writeAndStartInfoFile();
                 message = Catalog.GetString("Remote updates found, see Info at the bottom for more information. Do you want to continue?");
-                if (MessageBox.Show(message, Catalog.GetString("Attention"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+                if (MessageBox.Show(message, Catalog.GetString("Attention"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.OK)
                 {
                     // cancelled
                     EnableButtons();
@@ -1022,7 +973,7 @@ namespace ORTS
                 if (areThereChangedAddedFiles(route))
                 {
                     message = Catalog.GetString("Changed or added local files found, Update might fail, see Info at the bottom for more information. Do you want to continue?");
-                    if (MessageBox.Show(message, Catalog.GetString("Attention"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+                    if (MessageBox.Show(message, Catalog.GetString("Attention"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.OK)
                     {
                         // cancelled
                         EnableButtons();
@@ -1040,8 +991,6 @@ namespace ORTS
                 message = Catalog.GetString("No updates found");
                 MessageBox.Show(message, Catalog.GetString("Attention"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
-
-            EnableButtons();
         }
 
         private bool doThePull(ContentRouteSettings.Route route) {
@@ -1075,7 +1024,7 @@ namespace ORTS
 
         private void DisableButtons()
         {
-            setCursorToWaitCursor();
+            UseWaitCursor = true;
 
             dataGridViewDownloadContent.Enabled = false;
             InstallPathTextBox.Enabled = false;
@@ -1088,17 +1037,11 @@ namespace ORTS
             updateButton.Enabled = false;
         }
 
-        private void setCursorToWaitCursor()
-        {
-            ClosingBlocked = true;
-
-            MainForm mainForm = (MainForm)Owner;
-            mainForm.Cursor = Cursors.WaitCursor;
-        }
-
         private void EnableButtons()
-        { 
+        {
             ContentRouteSettings.Route route = Routes[RouteName];
+
+            UseWaitCursor = false;
 
             dataGridViewDownloadContent.Enabled = true;
             InstallPathTextBox.Enabled = true;
@@ -1108,16 +1051,6 @@ namespace ORTS
             startButton.Enabled = route.Installed && !string.IsNullOrWhiteSpace(route.Start.Route);
             deleteButton.Enabled = route.Installed;
             updateButton.Enabled = route.Installed && (route.getDownloadType() == ContentRouteSettings.DownloadType.github);
-
-            setCursorToDefaultCursor();
-        }
-
-        private void setCursorToDefaultCursor()
-        {
-            MainForm mainForm = (MainForm)Owner;
-            mainForm.Cursor = Cursors.Default;
-
-            ClosingBlocked = false;
         }
 
         private bool areThereChangedAddedFiles(ContentRouteSettings.Route route)
@@ -1292,7 +1225,7 @@ namespace ORTS
 
         private void DownloadContentForm_FormClosing(object sender, FormClosingEventArgs formClosingEventArgs)
         {
-            if (ClosingBlocked)
+            if (UseWaitCursor)
             {
                 // cancelled event, so continue
                 formClosingEventArgs.Cancel = true;

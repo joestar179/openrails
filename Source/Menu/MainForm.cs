@@ -31,8 +31,10 @@ using System.IO;
 using System.Linq;
 using System.Resources;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
-using Activity = ORTS.Menu.Activity;
+using static ORTS.Notification;
 using Path = ORTS.Menu.Path;
 
 namespace ORTS
@@ -137,8 +139,6 @@ namespace ORTS
         {
             var options = Environment.GetCommandLineArgs().Where(a => (a.StartsWith("-") || a.StartsWith("/"))).Select(a => a.Substring(1));
             Settings = new UserSettings(options);
-
-            Cursor = Cursors.Default;
 
             LoadOptions();
             LoadLanguage();
@@ -310,11 +310,34 @@ namespace ORTS
                 File.Delete(file);
         }
 
+        //void CheckForUpdate()
+        //{
+        //    // This is known directly from the chosen channel so doesn't need to wait for the update check itself.
+        //    linkLabelChangeLog.Visible = !string.IsNullOrEmpty(UpdateManager.ChangeLogLink);
+
+        //    new Task<UpdateManager>(this, () =>
+        //    {
+        //        UpdateManager.Check();
+        //        return null;
+        //    }, _ =>
+        //    {
+        //        if (UpdateManager.LastCheckError != null)
+        //            linkLabelUpdate.Text = catalog.GetString("Update check failed");
+                //else if (UpdateManager.LastUpdate != null && UpdateManager.LastUpdate.Version != VersionInfo.Version)
+                //    linkLabelUpdate.Text = catalog.GetStringFmt("Update to {0}", UpdateManager.LastUpdate.Version);
+                //else
+                //    linkLabelUpdate.Text = "";
+                //linkLabelUpdate.Enabled = true;
+                //linkLabelUpdate.Visible = linkLabelUpdate.Text.Length > 0;
+                //// Update link's elevation icon and size/position.
+                //if (UpdateManager.LastCheckError == null && UpdateManager.LastUpdate != null && UpdateManager.LastUpdate.Version != VersionInfo.Version && UpdateManager.UpdaterNeedsElevation)
+                //    linkLabelUpdate.Image = ElevationIcon;
+                //else
+                //    linkLabelUpdate.Image = null;
+        //    });
+        //}
         void CheckForUpdate()
         {
-            // This is known directly from the chosen channel so doesn't need to wait for the update check itself.
-            linkLabelChangeLog.Visible = !string.IsNullOrEmpty(UpdateManager.ChangeLogLink);
-
             new Task<UpdateManager>(this, () =>
             {
                 UpdateManager.Check();
@@ -322,22 +345,14 @@ namespace ORTS
             }, _ =>
             {
                 if (UpdateManager.LastCheckError != null)
+                {
                     linkLabelUpdate.Text = catalog.GetString("Update check failed");
-                else if (UpdateManager.LastUpdate != null && UpdateManager.LastUpdate.Version != VersionInfo.Version)
-                    linkLabelUpdate.Text = catalog.GetStringFmt("Update to {0}", UpdateManager.LastUpdate.Version);
-                else
-                    linkLabelUpdate.Text = "";
-                linkLabelUpdate.Enabled = true;
-                linkLabelUpdate.Visible = linkLabelUpdate.Text.Length > 0;
-                // Update link's elevation icon and size/position.
-                if (UpdateManager.LastCheckError == null && UpdateManager.LastUpdate != null && UpdateManager.LastUpdate.Version != VersionInfo.Version && UpdateManager.UpdaterNeedsElevation)
-                    linkLabelUpdate.Image = ElevationIcon;
-                else
-                    linkLabelUpdate.Image = null;
-                linkLabelUpdate.AutoSize = true;
-                linkLabelUpdate.Left = panelDetails.Right - linkLabelUpdate.Width - ElevationIcon.Width;
-                linkLabelUpdate.AutoSize = false;
-                linkLabelUpdate.Width = panelDetails.Right - linkLabelUpdate.Left;
+                    linkLabelChangeLog.Visible = true;
+                }
+                if (UpdateManager.LastUpdate != null)
+                {
+                    SetUpdateNotification();
+                }
             });
         }
 
@@ -1174,24 +1189,31 @@ namespace ORTS
         void ShowDetails()
         {
             Win32.LockWindowUpdate(Handle);
-            ClearDetails();
+            ClearPanel();
+            AddDetails();
+            FlowDetails();
+            Win32.LockWindowUpdate(IntPtr.Zero);
+        }
+
+        private void AddDetails()
+        {
             if (SelectedRoute != null && SelectedRoute.Description != null)
-                ShowDetail(catalog.GetStringFmt("Route: {0}", SelectedRoute.Name), SelectedRoute.Description.Split('\n'));
+                AddDetail(catalog.GetStringFmt("Route: {0}", SelectedRoute.Name), SelectedRoute.Description.Split('\n'));
 
             if (radioButtonModeActivity.Checked)
             {
                 if (SelectedConsist != null && SelectedConsist.Locomotive != null && SelectedConsist.Locomotive.Description != null)
                 {
-                    ShowDetail(catalog.GetStringFmt("Locomotive: {0}", SelectedConsist.Locomotive.Name), SelectedConsist.Locomotive.Description.Split('\n'));
+                    AddDetail(catalog.GetStringFmt("Locomotive: {0}", SelectedConsist.Locomotive.Name), SelectedConsist.Locomotive.Description.Split('\n'));
                 }
                 if (SelectedActivity != null && SelectedActivity.Description != null)
                 {
-                    ShowDetail(catalog.GetStringFmt("Activity: {0}", SelectedActivity.Name), SelectedActivity.Description.Split('\n'));
-                    ShowDetail(catalog.GetString("Activity Briefing"), SelectedActivity.Briefing.Split('\n'));
+                    AddDetail(catalog.GetStringFmt("Activity: {0}", SelectedActivity.Name), SelectedActivity.Description.Split('\n'));
+                    AddDetail(catalog.GetString("Activity Briefing"), SelectedActivity.Briefing.Split('\n'));
                 }
                 else if (SelectedPath != null)
                 {
-                    ShowDetail(catalog.GetStringFmt("Path: {0}", SelectedPath.Name), new[] {
+                    AddDetail(catalog.GetStringFmt("Path: {0}", SelectedPath.Name), new[] {
                         catalog.GetStringFmt("Starting at: {0}", SelectedPath.Start),
                         catalog.GetStringFmt("Heading to: {0}", SelectedPath.End)
                     });
@@ -1200,29 +1222,26 @@ namespace ORTS
             if (radioButtonModeTimetable.Checked)
             {
                 if (SelectedTimetableSet != null)
-                    ShowDetail(catalog.GetStringFmt("Timetable set: {0}", SelectedTimetableSet), new string[0]);
-                    // Description not shown as no description is available for a timetable set.
+                    AddDetail(catalog.GetStringFmt("Timetable set: {0}", SelectedTimetableSet), new string[0]);
+                // Description not shown as no description is available for a timetable set.
 
                 if (SelectedTimetable != null)
-                    ShowDetail(catalog.GetStringFmt("Timetable: {0}", SelectedTimetable), SelectedTimetable.Briefing.Split('\n'));
+                    AddDetail(catalog.GetStringFmt("Timetable: {0}", SelectedTimetable), SelectedTimetable.Briefing.Split('\n'));
 
                 if (SelectedTimetableTrain != null)
                 {
-                    ShowDetail(catalog.GetStringFmt("Train: {0}", SelectedTimetableTrain), HideStartParameters(SelectedTimetableTrain.ToInfo()));
+                    AddDetail(catalog.GetStringFmt("Train: {0}", SelectedTimetableTrain), HideStartParameters(SelectedTimetableTrain.ToInfo()));
 
                     if (SelectedTimetableConsist != null)
                     {
-                        ShowDetail(catalog.GetStringFmt("Consist: {0}", SelectedTimetableConsist.Name), new string[0]);
+                        AddDetail(catalog.GetStringFmt("Consist: {0}", SelectedTimetableConsist.Name), new string[0]);
                         if (SelectedTimetableConsist.Locomotive != null && SelectedTimetableConsist.Locomotive.Description != null)
-                            ShowDetail(catalog.GetStringFmt("Locomotive: {0}", SelectedTimetableConsist.Locomotive.Name), SelectedTimetableConsist.Locomotive.Description.Split('\n'));
+                            AddDetail(catalog.GetStringFmt("Locomotive: {0}", SelectedTimetableConsist.Locomotive.Name), SelectedTimetableConsist.Locomotive.Description.Split('\n'));
                     }
                     if (SelectedTimetablePath != null)
-                        ShowDetail(catalog.GetStringFmt("Path: {0}", SelectedTimetablePath.Name), SelectedTimetablePath.ToInfo());
+                        AddDetail(catalog.GetStringFmt("Path: {0}", SelectedTimetablePath.Name), SelectedTimetablePath.ToInfo());
                 }
             }
-
-            FlowDetails();
-            Win32.LockWindowUpdate(IntPtr.Zero);
         }
 
         /// <summary>
@@ -1234,7 +1253,7 @@ namespace ORTS
         /// </summary>
         /// <param name="info"></param>
         /// <returns></returns>
-        private string[] HideStartParameters(string [] info)
+        private string[] HideStartParameters(string[] info)
         {
             var fullStartTime = info[0].TrimStart();
             var startTimeArray = fullStartTime.Split('$');
@@ -1261,14 +1280,14 @@ namespace ORTS
             }
         }
 
-        void ClearDetails()
+        void ClearPanel()
         {
             Details.Clear();
             while (panelDetails.Controls.Count > 0)
                 panelDetails.Controls.RemoveAt(0);
         }
 
-        void ShowDetail(string title, string[] lines)
+        void AddDetail(string title, string[] lines)
         {
             var titleControl = new Label { Margin = new Padding(2), Text = title, UseMnemonic = false, Font = new Font(panelDetails.Font, FontStyle.Bold), TextAlign = ContentAlignment.BottomLeft };
             panelDetails.Controls.Add(titleControl);
@@ -1292,7 +1311,7 @@ namespace ORTS
             summaryControl.Width = panelDetails.ClientSize.Width - summaryControl.Margin.Horizontal;
             summaryControl.Height = TextRenderer.MeasureText("1\n2\n3\n4\n5", summaryControl.Font).Height;
 
-            // Find out where we need to cut the text to make the summary 5 lines long. Uses a binaty search to find the cut point.
+            // Find out where we need to cut the text to make the summary 5 lines long. Uses a binary search to find the cut point.
             var size = MeasureText(summaryControl.Text, summaryControl);
             if (size > summaryControl.Height)
             {
@@ -1415,7 +1434,7 @@ namespace ORTS
             var index = (int)UserSettings.Menu_SelectionIndex.Activity;
             for (var i = 0; i < comboBox.Items.Count; i++)
             {
-                if (comboBox.Items[i] is T && predicate((T)comboBox.Items[i]) || (Settings.Menu_Selection.Length > i && comboBox.Items[i].ToString() == Settings.Menu_Selection[index] ))
+                if (comboBox.Items[i] is T && predicate((T)comboBox.Items[i]) || (Settings.Menu_Selection.Length > i && comboBox.Items[i].ToString() == Settings.Menu_Selection[index]))
                 {
                     comboBox.SelectedIndex = i;
                     return;
@@ -1528,5 +1547,189 @@ namespace ORTS
             }
             //TO DO: Debrief Eval TTActivity
         }
+
+        #region Notifications
+        // Will probably move this region and the Details region into separate files.
+
+        bool AreNotificationsVisible = false;
+        // New notifications are those with a date after the NotificationsReadDate.
+        // Notifications are listed in reverse date order, with the newest one at the front.
+        // We don't track the reading of each notification but set the NewNotificationCount = 0 after the last of the new ones has been read.
+        int NewNotificationCount = 1;
+        int LastNotificationViewed = 0;
+
+        List<Notification> NotificationList = new List<Notification>();
+
+        private void pbNotificationsNone_Click(object sender, EventArgs e)
+        {
+            ToggleNotifications();
+        }
+        private void pbNotificationsSome_Click(object sender, EventArgs e)
+        {
+            ToggleNotifications();
+        }
+        private void lblNotificationCount_Click(object sender, EventArgs e)
+        {
+            ToggleNotifications();
+        }
+
+        private void ToggleNotifications()
+        {
+            if (AreNotificationsVisible == false)
+            {
+                AreNotificationsVisible = true; // Set before calling ShowNotifcations()
+                ShowNotifications();
+                FiddleNewNotificationCount();
+            }
+            else
+            {
+                AreNotificationsVisible = false;
+                ShowDetails();
+            }
+        }
+
+        private void FiddleNewNotificationCount()
+        {
+            LastNotificationViewed = 1;
+            UpdateNotificationAlert();
+        }
+
+        private void UpdateNotificationAlert()
+        {
+            if (LastNotificationViewed >= NewNotificationCount)
+            {
+                pbNotificationsSome.Visible = false;
+                lblNotificationCount.Visible = false;
+            }
+        }
+
+        void ShowNotifications()
+        {
+            Win32.LockWindowUpdate(Handle);
+            ClearPanel();
+            PopulateNotificationList();
+            var notification = GetCurrentNotification();
+            notification.FlowNDetails();
+            Win32.LockWindowUpdate(IntPtr.Zero);
+        }
+
+        /// <summary>
+        /// Populate the Notifications list
+        /// </summary>
+        //private void PopulateNotificationList()
+        //{
+            //NotificationList.Clear();
+            //if (NotificationList.Count == 0)
+            //{
+            //    var newNotification = new Notification();
+            //    NotificationList.Add(newNotification);
+            //new NHeadingControl(panelDetails, "This is a dummy notification", Color.OrangeRed).Add(newNotification);
+            //new NTitleControl(panelDetails, DateTime.Now, "Update is available").Add(newNotification);
+            //new NRecordControl(panelDetails, "Update mode", 140, "Stable").Add(newNotification);
+            //new NRecordControl(panelDetails, "Installed version", 140, "1.3.1").Add(newNotification);
+            //new NRecordControl(panelDetails, "New version available", 140, "1.4").Add(newNotification);
+            //new NButtonControl(panelDetails, "What's new", 90, "Find out on-line what's new in this version.").Add(newNotification);
+            //new NButtonControl(panelDetails, "Install", 90, "Install the new version.").Add(newNotification);
+            //new NHeadingControl(panelDetails, "Warning", Color.OrangeRed).Add(newNotification);
+            //new NTextControl(panelDetails, "The update from your current version may affect the behaviour of some of your content.").Add(newNotification);
+            //new NButtonControl(panelDetails, "Issue details", 90, "More details about this issue are available on-line.").Add(newNotification);
+
+            //new NTitleControl(panelDetails, new DateTime(2024, 8, 31, 0, 0, 0), "Update is available").Add(newNotification);
+            //new NRecordControl(panelDetails, "Update mode", 140, "Stable").Add(newNotification);
+            //new NRecordControl(panelDetails, "Installed version", 140, "1.6").Add(newNotification);
+            //new NRecordControl(panelDetails, "New version available", 140, "1.7").Add(newNotification);
+            //new NButtonControl(panelDetails, "What's new", 90, "Find out on-line what's new in this version.").Add(newNotification);
+            //new NHeadingControl(panelDetails, "Install Not Available", Color.OrangeRed).Add(newNotification);
+            //new NTextControl(panelDetails, "V1.7 cannot be installed on your system until the graphics card is upgraded.").Add(newNotification);
+            //new NButtonControl(panelDetails, "Graphics card", 90, "Find out on-line about graphics hardware needed.").Add(newNotification);
+            //new NHeadingControl(panelDetails, "More Realism", Color.Blue).Add(newNotification);
+            //new NTextControl(panelDetails, "This update supports graphics which are significantly more realistic.").Add(newNotification);
+            //new NButtonControl(panelDetails, "Enhancement", 90, "More details about this enhancement are available on-line.").Add(newNotification);
+
+            //}
+            //else
+            //{
+            //}
+            //var notification = NotificationList.LastOrDefault();
+            //new NTextControl(panelDetails, "").Add(notification);
+            //new NTextControl(panelDetails, "(Toggle icon to hide notifications.)").Add(notification);
+        //}
+
+        private void PopulateNotificationList()
+        {
+            SetUpdateNotification();
+
+            var notification = NotificationList.LastOrDefault();
+            new NTextControl(notification, "").Add();
+            new NTextControl(notification, "(Toggle icon to hide notifications.)").Add();
+        }
+
+        /// <summary>
+        ///  INCOMPLETE
+        /// </summary>
+        /// <returns></returns>
+        Notification GetCurrentNotification()
+        {
+            return NotificationList[0];
+        }
+
+        /// <summary>
+        /// Ultimately there will be a list of notifications downloaded for openrails/content.
+        /// Until then, there is a single notification announcing either that a new update is available or the installation is up to date.
+        /// </summary>
+        void SetUpdateNotification()
+        {
+            NewNotificationCount = (IsUpdateAvailable()) ? 1 : 0;
+            UpdateNotificationAlert();
+            NotificationList.Clear();
+            var newNotification = new Notification(panelDetails);
+            if (IsUpdateAvailable())
+            {
+                NewNotificationCount = 1;
+                if (AreNotificationsVisible)
+                {
+                    new NTitleControl(newNotification, UpdateManager.LastUpdate.Date, "Update is available").Add();
+                    new NRecordControl(newNotification, "Update mode", 140, UpdateManager.ChannelName).Add();
+                    new NRecordControl(newNotification, "Installed version", 140, VersionInfo.VersionOrBuild).Add();
+                    new NRecordControl(newNotification, "New version available", 140, UpdateManager.LastUpdate.Version).Add();
+                    new NLinkControl(newNotification, "What's new", 90, "Find out on-line what's new in this version.", this, UpdateManager.ChangeLogLink).Add();
+                    new NUpdateControl(newNotification, "Install", 90, "Install the new version.", this).Add();
+                }
+            }
+            else
+            {
+                NewNotificationCount = 0;
+                if (AreNotificationsVisible)
+                {
+                    var channelName = UpdateManager.ChannelName == "" ? "None" : UpdateManager.ChannelName;
+                    new NTitleControl(newNotification, DateTime.Now, "Installation is up to date").Add();
+                    new NRecordControl(newNotification, "Update mode", 140, channelName).Add();
+                    new NRecordControl(newNotification, "Installed version", 140, VersionInfo.VersionOrBuild).Add();
+                    new NRecordControl(newNotification, "New version available", 140, "none").Add();
+                }
+            }
+            NotificationList.Add(newNotification);
+        }
+
+        bool IsUpdateAvailable()
+        {
+            return UpdateManager.LastUpdate != null
+                && UpdateManager.LastUpdate.Version != VersionInfo.Version;
+        }
+
+        // 3 should be enough, but is there a way to get unlimited buttons?
+        public void Button0_Click(object sender, EventArgs e)
+        {
+            GetCurrentNotification().DoButton(UpdateManager, 0);
+        }
+        public void Button1_Click(object sender, EventArgs e)
+        {
+            GetCurrentNotification().DoButton(UpdateManager, 1);
+        }
+        public void Button2_Click(object sender, EventArgs e)
+        {
+            GetCurrentNotification().DoButton(UpdateManager, 2);
+        }
+        #endregion Notifications
     }
 }

@@ -2350,52 +2350,6 @@ The actual set value of traction or dynamic brake of *async* group is shown in
 lines *Throttle* and *Dynamic Brake*, respectively, in brackets, e.g.: 
 Throttle: 0% (50%).
 
-In addition to applying power and dynamic brake, remote units can also manage the
-train brake, independent brake, and emergency brake in sync with the lead locomotive.
-This can dramatically speed up brake application and release on long trains, which has
-allowed trains to increase in length substantially without major decreases in brake
-performance. Only one locomotive in each group, the 'lead' DP unit, will have brakes
-cut-in. Usually this is the same locomotive recieving throttle data from the lead
-locomotive. In Open Rails, these locomotives are designated automatically. To determine
-which units are the 'lead' in each group, check the ID row on the DPU Info window.
-
-As described earlier, operation in *sync* mode or *async* mode has no effect on air
-brake behavior. In reality, additional remote modes such as *set-out*, *bv out*,
-and *isolate* would disable air brakes on remote units, but these modes are not
-present for simplicity.
-
-.. index::
-   single: ORTSDPBrakeSynchronization
-
-By default, Open Rails will treat remote groups as manned helpers who typically
-would not assist in train brake operations, so only independent brakes will synchronize.
-To enable train brake synchronization, the token ``engine(ORTSDPBrakeSynchronization(``
-should be used. The valid settings for ``ORTSDPBrakeSynchronization`` are as follows:
-
-- ``"Apply"``: DP units will reduce the brake pipe pressure locally to match the
-  equalizing reservoir pressure of the controlling locomotive. (The controlling
-  locomotive must also have the ``"Apply"`` setting.)
-- ``"Release"``: DP units will increase the brake pipe pressure locally to match
-  the equalizing reservoir pressure of the controlling locomotive. (The controlling
-  locomotive must also have the ``"Release"`` setting.)
-- ``"Emergency"``: DP units will vent the brake pipe to 0 if an emergency application
-  is triggered by the controlling locomotive. (The controlling locomotive must also
-  have the ``"Emergency"`` setting.)
-- ``"Independent"``: DP units will match the brake cylinder pressure of the
-  controlling locomotive, and will automatically bail-off automatic brake
-  applications if needed. (The controlling locomotive must also have the
-  ``"Independent"`` setting.)
-                - NOTE: Although ``"Independent"`` is enabled by default,
-                  if ``ORTSDPBrakeSynchronization`` is present in the .eng
-                  file but ``"Independent"`` is not specified as an option,
-                  independent brakes will NOT be synchronized.
-
-All settings can be combined as needed, simply place a comma between each setting
-in the string: ``ORTSDPBrakeSynchronization("Apply, Release, Emergency, Independent")``
-will simulate the configuration of most modern locomotives. Unlike other distributed power
-features, brake synchronization can be applied to any locomotive type to simulate a wide
-variety of braking systems.
-
 Distributed power info and commands can also be displayed and operated through 
 cabview controls, as explained :ref:`here <cabs-distributed-power>`
 
@@ -3153,13 +3107,7 @@ MaxAuxilaryChargingRate and EmergencyResChargingRate.
 
 .. index::
    single: BrakePipeVolume
-   single: ORTSBrakeForceReferencePressure
-   single: ORTSAuxiliaryResCapacity
    single: ORTSBrakeCylinderVolume
-   single: ORTSBrakeCylinderPipingVolume
-   single: ORTSBrakeCylinderDiameter
-   single: ORTSBrakeCylinderPistonTravel
-   single: ORTSNumberBrakeCylinders
    single: ORTSEmergencyValveActuationRate
    single: ORTSEmergencyDumpValveRate
    single: ORTSEmergencyDumpValveTimer
@@ -3217,40 +3165,10 @@ MaxAuxilaryChargingRate and EmergencyResChargingRate.
   brake servicetimefactor instead, but the Open Rails Development team
   doesn't believe this is worth the effort by the user for the added
   realism.
-- ``Wagon(ORTSBrakeForceReferencePressure`` -- The brake cylinder
-  pressure at which the brake force entered in ``MaxBrakeForce`` or
-  ``ORTSMaxBrakeShoeForce`` occurs. If this value is not defined,
-  ``BrakeCylinderPressureForMaxBrakeBrakeForce`` is used as the
-  reference pressure.
-- ``Wagon(ORTSAuxiliaryResCapacity`` -- Volume of the car's auxiliary
-  reservoir. Normally determined automatically given the emergency res
-  volume, but can be entered manually if the car has no emergency res.
-- ``Wagon(ORTSBrakeCylinderVolume`` -- Volume of each brake cylinder on
-  the car. This allows specifying the brake cylinder volume independently
-  of triple valve ratio. This is useful when the cylinder is not directly
-  attached to a triple valve, e. g. when a relay valve exists.
-- ``Wagon(ORTSBrakeCylinderDiameter`` -- If brake cylinder dimensions are
-  available, this can be used to set the diameter of the piston in each
-  brake cylinder. WARNING: Applying this token will enable a more realistic
-  simulation of brake cylinder pressure which may require adjustments to
-  brake system parameters to produce the desired brake cylinder pressure.
-- ``Wagon(ORTSBrakeCylinderPistonTravel`` -- The length of brake cylinder
-  extension when the brakes are applied at 50 psi (3.5 bar). Larger travel
-  leads to larger brake cylinder volume, and volume will increase as the
-  brake cylinder pressurizes. (Default 7.5 inches.)
-- ``Wagon(ORTSCylinderSpringPressure`` -- The brake cylinder pressure
-  at which the brake cylinder piston reaches full extension. Below this
-  pressure, no brake force will be developed (default 5 psi).
-- ``Wagon(ORTSBrakeCylinderPipingVolume`` -- The volume of the piping between
-  the brake valve and each brake cylinder, including any volume of air in the
-  brake cylinder when released. This volume does not change as the brake
-  cylinder extends, but can still affect the final brake cylinder pressure.
-  If not specified, Open Rails will automatically calculate a volume to
-  produce appropriate brake cylinder pressures from the given `TripleValveRatio`.
-  A warning will be produced if the automatic calculation cannot determine
-  a suitable piping volume.
-- ``Wagon(ORTSNumberBrakeCylinders`` -- Sets the number of brake cylinders
-  on the car, multiplies the brake cylinder volume. (Default 1 brake cylinder.)
+- ``Wagon(ORTSBrakeCylinderVolume`` - Volume of car's brake cylinder. This allows
+  specifying the brake cylinder volume independently of triple valve ratio.
+  This is useful when the cylinder is not directly attached to a triple valve,
+  e. g. when a relay valve exists.
 - ``Wagon(ORTSEmergencyValveActuationRate`` -- Threshold rate for emergency
   brake actuation of the triple valve. If the pressure in the brake pipe
   decreases at a higher rate than specified, the triple valve will switch to
@@ -3280,12 +3198,10 @@ MaxAuxilaryChargingRate and EmergencyResChargingRate.
   Relay valves may be installed to achieve higher brake cylinder pressures,
   dynamic brake blending or variable load compensation.
 - ``Wagon(ORTSBrakeRelayValveInshot`` -- Sets the "in-shot" pressure for the relay
-  valve. If set to a positive value, this pressure will be added to the brake
-  cylinder across the entire range of relay valve application. If set to a negative
-  value, this pressure will override the brake cylinder pressure only if the relay
-  valve application is lower than this pressure. In either case, this sets a minimum brake
-  cylinder pressure. Many step down relay valves (ratio less than 1) utilize
-  in-shot to ensure brake cylinders extend fully for light train brake applications.
+  valve. This pressure will be added to the regular output of the relay valve for any
+  application, effectively setting a minimum brake cylinder pressure. Many step down
+  relay valves (ratio less than 1) utilize in-shot to ensure brake cylinders extend
+  fully for light train brake applications.
 - ``Wagon(ORTSEngineBrakeRelayValveRatio`` -- Same as ``ORTSBrakeRelayValveRatio``,
   but for the engine brake.
 - ``Wagon(ORTSEngineBrakeRelayValveInshot`` -- Same as ``ORTSBrakeRelayValveInshot``,
@@ -3305,16 +3221,16 @@ MaxAuxilaryChargingRate and EmergencyResChargingRate.
   allowed during service applications. For emergency applications, the application
   rate will be limited by ``MaxApplicationRate``.
 - ``Wagon(ORTSTwoStageLowPressure`` -- For two stage braking systems where brake force
-  changes depending on train speed, this sets the maximum cylinder pressure demanded
-  when in low speed mode (defaults to 0, disabling two stage braking). For high speed
-  mode, use ``ORTSMaxServiceCylinderPressure`` to set the pressure limit.
+  is reduced at lower speeds and increased at higher speeds, sets the maximum cylinder
+  pressure demanded when at slower speeds (defaults to 0, disabling two stage braking).
+  For high speed, use ``ORTSMaxTripleValveCylinderPressure`` to set the pressure limit.
 - ``Wagon(ORTSTwoStageRelayValveRatio`` -- Alternatey, sets a relay valve ratio to
-  be used by the two stage system in low speed mode. At high speeds, the relay valve
+  be used by the two stage system at low speeds. At high speed, the relay valve
   uses the ratio set by ``ORTSBrakeRelayValveRatio``.
 - ``Wagon(ORTSTwoStageIncreasingSpeed`` -- The speed at which the two stage braking
-  system changes from low speed mode to high speed mode during acceleration.
+  system changes from low pressure to high pressure during acceleration.
 - ``Wagon(ORTSTwoStageDecreasingSpeed`` -- The speed at which the two stage braking
-  system changes from high speed mode to low speed mode during deceleration.
+  system changes from high pressure to low pressure during deceleration.
 - ``Wagon(ORTSHighSpeedReducingPressure`` -- If the demanded brake cylinder pressure
   exceeds this value, the brakes will gradually release to this pressure. Simulates
   the high speed reducing valve (HSRV). (default 0 for wagons with no HSRV)
@@ -3352,6 +3268,9 @@ MaxAuxilaryChargingRate and EmergencyResChargingRate.
 - ``Wagon(ORTSInitialApplicationThreshold`` -- The pressure difference between
   the brake pipe and auxiliary reservoir at which the triple valve will
   change from release to apply (default 1 psi).
+- ``Wagon(ORTSCylinderSpringPressure`` -- Below the specified pressure, no
+  brake force will be developed, simulating the pressure required to
+  overcome the brake cylinder return spring (default 0).
 - ``BrakeEquipmentType(Supply_Reservoir`` -- Adds a supply reservoir to the
   loco or wagon, which will constantly charge to the brake pipe pressure
   or MR pipe (if equipped) pressure. If a supply reservoir is equipped,
@@ -3360,10 +3279,8 @@ MaxAuxilaryChargingRate and EmergencyResChargingRate.
   be used with large brake cylinders.
 - ``Wagon(ORTSSupplyResCapacity`` -- Volume of the supply reservoir. Larger
   volumes relative to the brake cylinder volume allow for more brake applications.
-  Can also be implemented as ``Engine(ORTSSupplyResCapacity`` for engines.
 - ``Wagon(ORTSSupplyResChargingRate`` -- The rate at which the pressure of the
   supply reservoir will increase when charging from the brake pipe or MR pipe.
-  Can also be implemented as ``Engine(ORTSSupplyResChargingRate`` for engines.
 - ``Engine(ORTSMainResChargingRate`` -- Rate of main reservoir pressure change
   in psi per second when the compressor is on (default .4).
 - ``Engine(ORTSEngineBrakeReleaseRate`` -- Rate of engine brake pressure
@@ -4594,27 +4511,6 @@ direction, ie behind wheel. Note, = 0 when not used.
 
 All sand consumption parameters are in cuft/sec.
 
-.. _physics-hammer-blow:
-
-Hammer Blow
-===========
-
-Hammer blow is as a result of the weights added to the wheels (eg connecting and reciprocating rods) of a steam 
-engine. The Excess (or Over) Balance weight was the weight that contributed to the hammer blow of the wheel, and it 
-increased typically with the square of the wheel speed.
-
-When the hammer force exceeded the weight on the wheel it was possible for the wheel to lift off the rails, this 
-created a "hammering effect" on the rails, which could damage track and other infrastructure such as bridges.
-
-The Hammer force is recorded in the HuD for the steam locomotive, and it will be in white text when "normal", 
-yellow text when within 10% of the point where the wheel will start to lift off the track, and red when the wheel 
-is lifting off the track.
-
-As a result of high hammer forces, some locomotives were speed restricted to prevent excessive damage to track 
-infrastructure.
-
-OR will use default values to set this feature up. If the Excess (or Over) Balance weight is known for a locomotive 
-it can be entered using ``ExcessRodBalance``, as a mass value.
 
 .. _physics-trailing-locomotive-resistance:
 
