@@ -1535,6 +1535,7 @@ namespace Orts.Viewer3D.Popups
                 carDerailExpected = train.Cars[i].DerailExpected;
                 if (carDerailExpected)
                 {
+                    Owner.Viewer.StartDerailmentSequence();
                     break;
                 }
 

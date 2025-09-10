@@ -12,6 +12,10 @@ msgstr ""
 "X-Generator: Poedit 1.7.5\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
+#: ../../RunActivity/Viewer3D/Viewer.cs:227
+msgid "DerailRestart"
+msgstr "Train has derailed, restart simulation"
+
 #: ../../RunActivity/Common/Scripting/BrakeController.cs:217
 #: ../../RunActivity/RollingStock/MSTSSteamLocomotive.cs:3635
 #: ../../RunActivity/RollingStock/SubSystems/Brakes/MSTS/AirSinglePipe.cs:55

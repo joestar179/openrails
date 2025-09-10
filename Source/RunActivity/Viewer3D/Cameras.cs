@@ -55,6 +55,11 @@ namespace Orts.Viewer3D
         protected int MouseScrollValue;
         protected internal float FieldOfView;
 
+        /// <summary>
+        /// When set, camera translation commands are ignored. Rotation is still allowed.
+        /// </summary>
+        public bool TranslationLocked { get; set; }
+
         protected Matrix xnaView;
         public Matrix XnaView { get { return xnaView; } }
 

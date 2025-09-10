@@ -12,6 +12,10 @@ msgstr ""
 "X-Generator: Poedit 3.0\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#: ../../RunActivity/Viewer3D/Viewer.cs:227
+msgid "DerailRestart"
+msgstr "Train has derailed, restart simulation"
+
 #: ../../RunActivity/Viewer3D/Cameras.cs:601
 msgid "Free"
 msgstr "Frei beweglich"
