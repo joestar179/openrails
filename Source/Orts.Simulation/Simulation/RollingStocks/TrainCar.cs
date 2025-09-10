@@ -1696,8 +1696,17 @@ namespace Orts.Simulation.RollingStocks
                     // If derail climb time exceeded, then derail happens
                     if (DerailPossible && DerailElapsedTimeS > derailTimeS)
                     {
-                        DerailExpected = true;
-                        Simulator.Confirmer.Message(ConfirmLevel.Warning, Simulator.Catalog.GetStringFmt("Car {0} has derailed on the curve.", CarID));
+                        if (!DerailExpected)
+                        {
+                            DerailExpected = true;
+                            Simulator.Confirmer.Message(ConfirmLevel.Warning, Simulator.Catalog.GetStringFmt("Car {0} has derailed on the curve.", CarID));
+
+                            // Pick a derailment event based on speed for the sound system
+                            float speedMph = MpS.ToMpH(AbsSpeedMpS);
+                            Event derailEvent = speedMph < 10f ? Event.Derail1 :
+                                speedMph < 30f ? Event.Derail2 : Event.Derail3;
+                            SignalEvent(derailEvent);
+                        }
                       //  Trace.TraceInformation("Car Derail - CarID: {0}, Coupler: {1}, CouplerSmoothed {2}, Lateral {3}, Vertical {4}, Angle {5} Nadal {6} Coeff {7}", CarID, CouplerForceU, CouplerForceUSmoothed.SmoothedValue, TotalWagonLateralDerailForceN, TotalWagonVerticalDerailForceN, WagonCouplerAngleDerailRad, NadalDerailmentCoefficient, DerailmentCoefficient);
                      //   Trace.TraceInformation("Car Ahead Derail - CarID: {0}, Coupler: {1}, CouplerSmoothed {2}, Lateral {3}, Vertical {4}, Angle {5}", CarAhead.CarID, CarAhead.CouplerForceU, CarAhead.CouplerForceUSmoothed.SmoothedValue, CarAhead.TotalWagonLateralDerailForceN, CarAhead.TotalWagonVerticalDerailForceN, CarAhead.WagonCouplerAngleDerailRad);
                     }
