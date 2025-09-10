@@ -94,6 +94,44 @@ namespace Orts.Simulation.RollingStocks
         public float RotationYRadians;
     }
 
+    /// <summary>
+    /// Simple oriented bounding box used for derailed car collisions.
+    /// </summary>
+    public struct OrientedBoundingBox
+    {
+        public Vector3 Center;
+        public Vector3 HalfSize;
+        public Matrix Orientation;
+
+        public OrientedBoundingBox(Vector3 center, Vector3 halfSize, Matrix orientation)
+        {
+            Center = center;
+            HalfSize = halfSize;
+            Orientation = orientation;
+        }
+
+        public Vector3[] GetCorners()
+        {
+            var right = Orientation.Right;
+            var up = Orientation.Up;
+            var forward = Orientation.Forward;
+            var hx = right * HalfSize.X;
+            var hy = up * HalfSize.Y;
+            var hz = forward * HalfSize.Z;
+            return new Vector3[]
+            {
+                Center - hx - hy - hz,
+                Center - hx - hy + hz,
+                Center - hx + hy + hz,
+                Center - hx + hy - hz,
+                Center + hx - hy - hz,
+                Center + hx - hy + hz,
+                Center + hx + hy + hz,
+                Center + hx + hy - hz
+            };
+        }
+    }
+
     public abstract class TrainCar
     {
         public readonly Simulator Simulator;
@@ -296,6 +334,11 @@ namespace Orts.Simulation.RollingStocks
 
         // status of the traincar - set by the train physics after it calls TrainCar.Update()
         public WorldPosition WorldPosition = new WorldPosition();  // current position of the car
+        // Parameters used when the car has derailed
+        public bool IsDerailed;
+        public Vector3 DerailedVelocity;
+        public OrientedBoundingBox DerailedBoundingBox;
+        public BoundingBox DerailedAABB;
         public float DistanceM;  // running total of distance travelled - always positive, updated by train physics
         public float _SpeedMpS; // meters per second; updated by train physics, relative to direction of car  50mph = 22MpS
         public float _PrevSpeedMpS;
@@ -643,6 +686,7 @@ namespace Orts.Simulation.RollingStocks
         protected float StartCurveResistanceFactor = 2.0f; // Set curve friction at Start = 200%
         protected float RouteSpeedMpS; // Max Route Speed Limit
         protected const float GravitationalAccelerationMpS2 = 9.80665f; // Acceleration due to gravity 9.80665 m/s2
+        protected const float DerailedFrictionCoefficient = 0.4f; // Simple ground friction for derailed cars
         protected int WagonNumAxles; // Number of axles on a wagon
         protected int InitWagonNumAxles; // Initial read of number of axles on a wagon
         protected float MSTSWagonNumWheels; // Number of axles on a wagon - used to read MSTS value as default
@@ -964,6 +1008,9 @@ namespace Orts.Simulation.RollingStocks
 
                 _PrevSpeedMpS = _SpeedMpS;
             }
+
+            if (IsDerailed)
+                HandleDerailedPhysics(elapsedClockSeconds);
         }
 
 
@@ -986,6 +1033,115 @@ namespace Orts.Simulation.RollingStocks
                             container.WorldPosition.XNAMatrix = Matrix.Multiply(container.RelativeContainerMatrix, discreteFreightAnim.Wagon.WorldPosition.XNAMatrix);
                             container.WorldPosition.TileX = WorldPosition.TileX;
                             container.WorldPosition.TileZ = WorldPosition.TileZ;
+                        }
+                    }
+                }
+            }
+        }
+
+        void HandleDerailedPhysics(float elapsedClockSeconds)
+        {
+            UpdateDerailedBoundingBox();
+
+            // Apply gravity
+            DerailedVelocity.Y -= GravitationalAccelerationMpS2 * elapsedClockSeconds;
+
+            // Integrate position
+            var loc = WorldPosition.Location;
+            loc += DerailedVelocity * elapsedClockSeconds;
+
+            // Simple ground collision at zero height
+            float groundHeight = 0f;
+            if (loc.Y - DerailedBoundingBox.HalfSize.Y < groundHeight)
+            {
+                loc.Y = groundHeight + DerailedBoundingBox.HalfSize.Y;
+                if (DerailedVelocity.Y < 0) DerailedVelocity.Y = 0;
+
+                // Uniform friction
+                var horizontal = new Vector3(DerailedVelocity.X, 0, DerailedVelocity.Z);
+                float speed = horizontal.Length();
+                if (speed > 0)
+                {
+                    float decel = GravitationalAccelerationMpS2 * DerailedFrictionCoefficient * elapsedClockSeconds;
+                    float newSpeed = Math.Max(0, speed - decel);
+                    if (newSpeed == 0) horizontal = Vector3.Zero;
+                    else horizontal *= newSpeed / speed;
+                    DerailedVelocity.X = horizontal.X;
+                    DerailedVelocity.Z = horizontal.Z;
+                }
+
+                // Add slope handling from current rotation
+                var forward = WorldPosition.XNAMatrix.Forward;
+                forward.Z = -forward.Z;
+                DerailedVelocity += new Vector3(forward.X, 0, forward.Z) * forward.Y * GravitationalAccelerationMpS2 * elapsedClockSeconds;
+            }
+
+            WorldPosition.Location = loc;
+
+            // Collide with other derailed cars
+            if (Train != null)
+            {
+                foreach (var other in Train.Cars)
+                {
+                    if (other == this || !other.IsDerailed)
+                        continue;
+                    if (DerailedAABB.Intersects(other.DerailedAABB))
+                    {
+                        var push = WorldPosition.Location - other.WorldPosition.Location;
+                        push.Y = 0;
+                        if (push.LengthSquared() < 1e-4f)
+                            push = Vector3.UnitX;
+                        push.Normalize();
+                        WorldPosition.Location += push * 0.01f;
+                        other.WorldPosition.Location -= push * 0.01f;
+                    }
+                }
+            }
+
+            ApplyDerailedCouplerForces(elapsedClockSeconds);
+        }
+
+        void UpdateDerailedBoundingBox()
+        {
+            DerailedBoundingBox = new OrientedBoundingBox(
+                WorldPosition.Location,
+                new Vector3(CarWidthM * 0.5f, CarHeightM * 0.5f, CarLengthM * 0.5f),
+                WorldPosition.XNAMatrix);
+
+            var corners = DerailedBoundingBox.GetCorners();
+            Vector3 min = corners[0], max = corners[0];
+            for (int i = 1; i < corners.Length; i++)
+            {
+                min = Vector3.Min(min, corners[i]);
+                max = Vector3.Max(max, corners[i]);
+            }
+            DerailedAABB = new BoundingBox(min, max);
+        }
+
+        void ApplyDerailedCouplerForces(float elapsedClockSeconds)
+        {
+            if (CarBehind != null && CarBehind.IsDerailed && !CouplerExceedBreakLimit)
+            {
+                var delta = CarBehind.WorldPosition.Location - WorldPosition.Location;
+                float distance = delta.Length();
+                if (distance > 0)
+                {
+                    float rest = 0.5f * (CarLengthM + CarBehind.CarLengthM);
+                    float stretch = distance - rest;
+                    if (Math.Abs(stretch) > 0)
+                    {
+                        const float stiffness = 100000f;
+                        float force = stiffness * stretch;
+                        if (Math.Abs(force) > GetCouplerBreak1N())
+                        {
+                            CouplerExceedBreakLimit = true;
+                            CarBehind.CouplerExceedBreakLimit = true;
+                        }
+                        else
+                        {
+                            Vector3 dir = delta / distance;
+                            DerailedVelocity += dir * (force / MassKG) * elapsedClockSeconds;
+                            CarBehind.DerailedVelocity -= dir * (force / CarBehind.MassKG) * elapsedClockSeconds;
                         }
                     }
                 }
@@ -1697,6 +1853,10 @@ namespace Orts.Simulation.RollingStocks
                     if (DerailPossible && DerailElapsedTimeS > derailTimeS)
                     {
                         DerailExpected = true;
+                        IsDerailed = true;
+                        var forward = WorldPosition.XNAMatrix.Forward;
+                        forward.Z = -forward.Z;
+                        DerailedVelocity = forward * _SpeedMpS;
                         Simulator.Confirmer.Message(ConfirmLevel.Warning, Simulator.Catalog.GetStringFmt("Car {0} has derailed on the curve.", CarID));
                       //  Trace.TraceInformation("Car Derail - CarID: {0}, Coupler: {1}, CouplerSmoothed {2}, Lateral {3}, Vertical {4}, Angle {5} Nadal {6} Coeff {7}", CarID, CouplerForceU, CouplerForceUSmoothed.SmoothedValue, TotalWagonLateralDerailForceN, TotalWagonVerticalDerailForceN, WagonCouplerAngleDerailRad, NadalDerailmentCoefficient, DerailmentCoefficient);
                      //   Trace.TraceInformation("Car Ahead Derail - CarID: {0}, Coupler: {1}, CouplerSmoothed {2}, Lateral {3}, Vertical {4}, Angle {5}", CarAhead.CarID, CarAhead.CouplerForceU, CarAhead.CouplerForceUSmoothed.SmoothedValue, CarAhead.TotalWagonLateralDerailForceN, CarAhead.TotalWagonVerticalDerailForceN, CarAhead.WagonCouplerAngleDerailRad);
