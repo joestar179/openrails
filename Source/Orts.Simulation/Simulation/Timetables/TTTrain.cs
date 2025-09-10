@@ -61,7 +61,8 @@ namespace Orts.Simulation.Timetables
         public static float keepDistanceTrainAheadCloseupM = 0.5f; // Stay 0.5m from train ahead when closeup required (for stabling only)
         public static float keepDistanceCloseupSignalM = 7.0f;     // Stay 10m from signal ahead when signalcloseup required
         public static float endOfRouteDistance = 150f;             // Max length to remain for train to continue on route
-        public static int clockmult = 10;                           //joe179star default clock multiplier (normal speed)
+        // Default clock multiplier (normal speed)
+        public static int ClockMultiplier = 10;
 
         public int? ActivateTime;                        // Time train is activated
         public bool TriggeredActivationRequired = false; // Train activation is triggered by other train
@@ -146,6 +147,9 @@ namespace Orts.Simulation.Timetables
         public Dictionary<int, List<int>> NeedStationTransfer = new Dictionary<int, List<int>>();
         // Number of required train transfers per section
         public Dictionary<int, int> NeedTrainTransfer = new Dictionary<int, int>();
+
+        // All station stops in original timetable order
+        public List<StationStop> AllStationStops = new List<StationStop>();
 
         /* Delayed restart */
         public bool DelayedStart = false;                   // Start is delayed
@@ -537,7 +541,7 @@ namespace Orts.Simulation.Timetables
 
             Briefing = inf.ReadString();
 
-            clockmult = inf.ReadInt32(); //joe179star
+            ClockMultiplier = inf.ReadInt32();
 
             // Reset actions if train is active
             bool activeTrain = true;
@@ -849,7 +853,7 @@ namespace Orts.Simulation.Timetables
             outf.Write(DriverOnlyOperation);
             outf.Write(ForceReversal);
             outf.Write(Briefing);
-            outf.Write(clockmult); //joe179star
+            outf.Write(ClockMultiplier);
         }
 
         //================================================================================================//
@@ -1065,6 +1069,7 @@ namespace Orts.Simulation.Timetables
                         if (newStop.RouteIndex >= 0)
                         {
                             StationStops.Add(newStop); // Do not set stop if platform is not on route
+                            AllStationStops.Add(newStop);
 
                             // Switch stop position if train is to reverse
                             int nextTrainRouteIndex = nextTrain.TCRoute.TCRouteSubpaths[0].GetRouteIndex(lastSectionIndex, 0);
@@ -2017,6 +2022,7 @@ namespace Orts.Simulation.Timetables
                 int EndSignal = thisStation.ExitSignal;
 
                 StationStops.Add(thisStation);
+                AllStationStops.Add(thisStation);
 
                 // If station has hold signal and this signal is the same as the exit signal for previous station, remove the exit signal from the previous station
                 if (HoldSignal && StationStops.Count > 1)
@@ -2829,7 +2835,7 @@ namespace Orts.Simulation.Timetables
                         }
                         else
                         {
-                            dyndelayspeed = MathHelper.Clamp(clockmult * StationStops[0].DistanceToTrainM / (10 * (StationStops[0].ArrivalTime - correctedTime - delaysec)), 0.0f, 200.0f);
+                            dyndelayspeed = MathHelper.Clamp(ClockMultiplier * StationStops[0].DistanceToTrainM / (10 * (StationStops[0].ArrivalTime - correctedTime - delaysec)), 0.0f, 200.0f);
                         }
                         //Trace.TraceInformation("minimal delay dyndelayspeed {0} stationtime {1} stationdist {2} correctedtime {3} presenttime {4} delay {5} Name {6}", Convert.ToInt32(dyndelayspeed), StationStops[0].ArrivalTime, StationStops[0].DistanceToTrainM, correctedTime, presentTime, delaysec, Name);
                         if (dyndelayspeed < 1.0f)
@@ -10294,6 +10300,11 @@ namespace Orts.Simulation.Timetables
         public void SetupStationStopHandling()
         {
             CheckStations = true; // Set station stops to be handled by train
+
+            if (AllStationStops.Count == 0 && StationStops != null)
+            {
+                AllStationStops.AddRange(StationStops);
+            }
 			
             // Check if initial at station
             if (StationStops.Count > 0)

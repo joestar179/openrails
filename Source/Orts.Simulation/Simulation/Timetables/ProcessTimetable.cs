@@ -54,7 +54,7 @@ namespace Orts.Simulation.Timetables
             trainDefinition,
             trainAddInfo,
             invalid,
-            clockmult,
+            clockMultiplier,
         }
 
         private enum rowType
@@ -73,7 +73,7 @@ namespace Orts.Simulation.Timetables
             comment,
             briefing,
             invalid,
-            clockmult,
+            clockMultiplier,
         }
 
         Dictionary<string, AIPath> Paths = new Dictionary<string, AIPath>();             // Original path referenced by path name
@@ -333,8 +333,8 @@ namespace Orts.Simulation.Timetables
             int disposeRow = -1;
             int briefingRow = -1;
 
-            int firstclockmultRow = -1; //joe179star
-            int firstclockmultColumn = -1; //joe179star
+            int firstClockMultiplierRow = -1;
+            int firstClockMultiplierColumn = -1;
 
             int firstCommentRow = -1;
             int firstCommentColumn = -1;
@@ -371,8 +371,8 @@ namespace Orts.Simulation.Timetables
                             ColInfo[iColumn] = columnType.comment;
                             break;
 
-                        case columnType.clockmult: //joe179star
-                            ColInfo[iColumn] = columnType.clockmult;
+                        case columnType.clockMultiplier:
+                            ColInfo[iColumn] = columnType.clockMultiplier;
                             break;
 
                         case columnType.trainDefinition:
@@ -388,11 +388,13 @@ namespace Orts.Simulation.Timetables
                 }
                 else if (String.Compare(columnDef, "#comment", true) == 0)
                 {
-                    // Comment & clockmult joe179star
                     ColInfo[iColumn] = columnType.comment;
                     if (firstCommentColumn < 0) firstCommentColumn = iColumn;
-                    ColInfo[iColumn] = columnType.clockmult;
-                    if (firstclockmultColumn < 0) firstclockmultColumn = iColumn;
+                }
+                else if (String.Compare(columnDef, "#clockmult", true) == 0)
+                {
+                    ColInfo[iColumn] = columnType.clockMultiplier;
+                    if (firstClockMultiplierColumn < 0) firstClockMultiplierColumn = iColumn;
                 }
 
                 else if (columnDef.Substring(0, 1).Equals("#"))
@@ -540,18 +542,9 @@ namespace Orts.Simulation.Timetables
                             briefingRow = iRow;
                             break;
 
-                        case "#clockmult": //joe179star
-                            RowInfo[iRow] = rowType.clockmult;
-                            if (firstclockmultRow < 0) firstclockmultRow = iRow;
-                            if (firstclockmultRow < 0)
-                            {
-                                Trace.TraceInformation("no clockmult found \n");
-                                TTTrain.clockmult = 10;
-                            }
-                            else
-                            {
-                                Trace.TraceInformation("firstclockmult firstclockcol {0} {1}", firstclockmultRow, firstclockmultColumn);
-                            }
+                        case "#clockmult":
+                            RowInfo[iRow] = rowType.clockMultiplier;
+                            if (firstClockMultiplierRow < 0) firstClockMultiplierRow = iRow;
                             break;
 
                         default:  // default is station definition
@@ -631,17 +624,11 @@ namespace Orts.Simulation.Timetables
             string description = (firstCommentRow >= 0 && firstCommentColumn >= 0) ?
                 fileContents.Strings[firstCommentRow][firstCommentColumn] : Path.GetFileNameWithoutExtension(fileContents.FilePath);
 
-            // extract clock multiplier joe179star
-
-            string clockmultinfo = (firstclockmultRow >= 0 && firstclockmultColumn >= 0) ?
-                fileContents.Strings[firstclockmultRow][firstclockmultColumn] : Path.GetFileNameWithoutExtension(fileContents.FilePath);
-            Trace.TraceWarning("clock multiplier string: {0}", clockmultinfo);
-            if (clockmultinfo == null)
-            {
-                clockmultinfo = "10";
-            }
-            TTTrain.clockmult = Int32.Parse(clockmultinfo);
-            Trace.TraceWarning("clock multiplier integer: {0}", TTTrain.clockmult);
+            // Extract clock multiplier (defaults to 10 if not specified)
+            string clockMultiplierInfo = (firstClockMultiplierRow >= 0 && firstClockMultiplierColumn >= 0) ?
+                fileContents.Strings[firstClockMultiplierRow][firstClockMultiplierColumn] : "10";
+            if (!int.TryParse(clockMultiplierInfo, out TTTrain.ClockMultiplier))
+                TTTrain.ClockMultiplier = 10;
 
             // Extract additional station info
             for (int iRow = 1; iRow <= fileContents.Strings.Count - 1; iRow++)

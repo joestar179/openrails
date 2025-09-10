@@ -564,6 +564,41 @@ namespace Orts.Viewer3D.Popups
                     var textFlow = new TextFlow(scrollbox.RemainingWidth, briefing);
                     scrollbox.Add(textFlow);
                 }));
+
+                Tabs.Add(new TabData(Tab.Timetable, Viewer.Catalog.GetString("Timetable"), (cl) =>
+                {
+                    var colWidth = (cl.RemainingWidth - cl.TextHeight) / 7;
+                    {
+                        var line = cl.AddLayoutHorizontalLineOfText();
+                        line.Add(new Label(colWidth * 3, line.RemainingHeight, Viewer.Catalog.GetString("Station")));
+                        line.Add(new Label(colWidth, line.RemainingHeight, Viewer.Catalog.GetString("Arrive"), LabelAlignment.Center));
+                        line.Add(new Label(colWidth, line.RemainingHeight, Viewer.Catalog.GetString("Actual"), LabelAlignment.Center));
+                        line.Add(new Label(colWidth, line.RemainingHeight, Viewer.Catalog.GetString("Depart"), LabelAlignment.Center));
+                        line.Add(new Label(colWidth, line.RemainingHeight, Viewer.Catalog.GetString("Actual"), LabelAlignment.Center));
+                    }
+                    cl.AddHorizontalSeparator();
+                    var scrollbox = cl.AddLayoutScrollboxVertical(cl.RemainingWidth);
+                    var tTTrain = owner.Viewer.SelectedTrain as Orts.Simulation.Timetables.TTTrain;
+                    if (tTTrain != null && tTTrain.AllStationStops != null)
+                    {
+                        foreach (var stop in tTTrain.AllStationStops)
+                        {
+                            Label arriveLabel, departLabel;
+                            var line = scrollbox.AddLayoutHorizontalLineOfText();
+                            line.Add(new Label(colWidth * 3, line.RemainingHeight, stop.PlatformItem.Name));
+                            line.Add(new Label(colWidth, line.RemainingHeight, stop.arrivalDT.ToString("HH:mm:ss"), LabelAlignment.Center));
+                            DateTime? actArr = stop.ActualArrival >= 0 ? new DateTime((long)(Math.Pow(10, 7) * stop.ActualArrival)) : (DateTime?)null;
+                            string actArrText = actArr.HasValue ? actArr.Value.ToString("HH:mm:ss") : stop.Passed ? Viewer.Catalog.GetString("(missed)") : "";
+                            line.Add(arriveLabel = new Label(colWidth, line.RemainingHeight, actArrText, LabelAlignment.Center));
+                            line.Add(new Label(colWidth, line.RemainingHeight, stop.departureDT.ToString("HH:mm:ss"), LabelAlignment.Center));
+                            DateTime? actDep = stop.ActualDepart >= 0 ? new DateTime((long)(Math.Pow(10, 7) * stop.ActualDepart)) : (DateTime?)null;
+                            string actDepText = actDep.HasValue ? actDep.Value.ToString("HH:mm:ss") : stop.Passed ? Viewer.Catalog.GetString("(missed)") : "";
+                            line.Add(departLabel = new Label(colWidth, line.RemainingHeight, actDepText, LabelAlignment.Center));
+                            arriveLabel.Color = NextStationWindow.GetArrivalColor(stop.arrivalDT, actArr);
+                            departLabel.Color = NextStationWindow.GetDepartColor(stop.departureDT, actDep);
+                        }
+                    }
+                }));
             }
             Tabs.Add(new TabData(Tab.LocomotiveProcedures, Viewer.Catalog.GetString("Procedures"), (cl) =>
             {
@@ -1195,6 +1230,7 @@ namespace Orts.Viewer3D.Popups
             ActivityWorkOrders,
             ActivityEvaluation,
             TimetableBriefing,
+            Timetable,
             LocomotiveProcedures,
         }
 
