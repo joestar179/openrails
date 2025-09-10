@@ -255,8 +255,16 @@ namespace Orts.Viewer3D.Popups
             outf.Write(ctrlAIFiremanReset);
             outf.Write(clockWheelTime);
             outf.Write(wheelLabelVisible);
-            outf.Write(clockDerailTime);
-            outf.Write(derailLabelVisible);
+            if (Owner.Viewer.Settings.VisualDerailment)
+            {
+                outf.Write(clockDerailTime);
+                outf.Write(derailLabelVisible);
+            }
+            else
+            {
+                outf.Write(0.0);
+                outf.Write(false);
+            }
             outf.Write(clockDoorsTime);
             outf.Write(doorsLabelVisible);
         }
@@ -276,8 +284,18 @@ namespace Orts.Viewer3D.Popups
             ctrlAIFiremanReset = inf.ReadBoolean();
             clockWheelTime = inf.ReadDouble();
             wheelLabelVisible = inf.ReadBoolean();
-            clockDerailTime = inf.ReadDouble();
-            derailLabelVisible = inf.ReadBoolean();
+            if (Owner.Viewer.Settings.VisualDerailment)
+            {
+                clockDerailTime = inf.ReadDouble();
+                derailLabelVisible = inf.ReadBoolean();
+            }
+            else
+            {
+                inf.ReadDouble();
+                inf.ReadBoolean();
+                clockDerailTime = 0;
+                derailLabelVisible = false;
+            }
             clockDoorsTime = inf.ReadDouble();
             doorsLabelVisible = inf.ReadBoolean();
 
@@ -1519,68 +1537,71 @@ namespace Orts.Viewer3D.Popups
                 }
             }
 
-            //Derailment Coefficient. Changed the float value output by a text label.
-            var carIDerailCoeff = "";
-            var carDerailPossible = false;
-            var carDerailExpected = false;
-
-            for (var i = 0; i < train.Cars.Count; i++)
+            if (Viewer.Settings.VisualDerailment)
             {
-                var carDerailCoeff = train.Cars[i].DerailmentCoefficient;
-                carDerailCoeff = float.IsInfinity(carDerailCoeff) || float.IsNaN(carDerailCoeff) ? 0 : carDerailCoeff;
+                //Derailment Coefficient. Changed the float value output by a text label.
+                var carIDerailCoeff = "";
+                var carDerailPossible = false;
+                var carDerailExpected = false;
 
-                carIDerailCoeff = train.Cars[i].CarID;
+                for (var i = 0; i < train.Cars.Count; i++)
+                {
+                    var carDerailCoeff = train.Cars[i].DerailmentCoefficient;
+                    carDerailCoeff = float.IsInfinity(carDerailCoeff) || float.IsNaN(carDerailCoeff) ? 0 : carDerailCoeff;
 
-                // Only record the first car that has derailed, stop looking for other derailed cars
-                carDerailExpected = train.Cars[i].DerailExpected;
+                    carIDerailCoeff = train.Cars[i].CarID;
+
+                    // Only record the first car that has derailed, stop looking for other derailed cars
+                    carDerailExpected = train.Cars[i].DerailExpected;
+                    if (carDerailExpected)
+                    {
+                        break;
+                    }
+
+                    // Only record first instance of a possible car derailment (warning)
+                    if (train.Cars[i].DerailPossible && !carDerailPossible)
+                    {
+                        carDerailPossible = train.Cars[i].DerailPossible;
+                    }
+                }
+
+                if (carDerailPossible || carDerailExpected)
+                {
+                    derailLabelVisible = true;
+                    clockDerailTime = Owner.Viewer.Simulator.ClockTime;
+                }
+
+                // The most extreme instance of the derail coefficient will only be displayed in the TDW
                 if (carDerailExpected)
-                {
-                    break;
-                }
-
-                // Only record first instance of a possible car derailment (warning)
-                if (train.Cars[i].DerailPossible && !carDerailPossible)
-                {
-                    carDerailPossible = train.Cars[i].DerailPossible;
-                }
-            }
-
-            if (carDerailPossible || carDerailExpected)
-            {
-                derailLabelVisible = true;
-                clockDerailTime = Owner.Viewer.Simulator.ClockTime;
-            }
-
-            // The most extreme instance of the derail coefficient will only be displayed in the TDW
-            if (carDerailExpected)
-            {
-                AddLabel(new ListLabel
-                {
-                    FirstCol = Viewer.Catalog.GetString("DerailCoeff"),
-                    LastCol = $"{Viewer.Catalog.GetString("Derailed")} {carIDerailCoeff}" + ColorCode[Color.OrangeRed],
-                });
-            }
-            else if (carDerailPossible)
-            {
-                AddLabel(new ListLabel
-                {
-                    FirstCol = Viewer.Catalog.GetString("DerailCoeff"),
-                    LastCol = $"{Viewer.Catalog.GetString("Warning")} {carIDerailCoeff}" + ColorCode[Color.Yellow],
-                });
-            }
-            else
-            {
-                // delay to hide the derailcoeff label if normal
-                if (derailLabelVisible && clockDerailTime + 3 < Owner.Viewer.Simulator.ClockTime)
-                    derailLabelVisible = false;
-
-                if (derailLabelVisible)
                 {
                     AddLabel(new ListLabel
                     {
-                        FirstCol = Viewer.Catalog.GetString("DerailCoeff") + ColorCode[Color.White],
-                        LastCol = Viewer.Catalog.GetString("Normal") + ColorCode[Color.White]
+                        FirstCol = Viewer.Catalog.GetString("DerailCoeff"),
+                        LastCol = $"{Viewer.Catalog.GetString("Derailed")} {carIDerailCoeff}" + ColorCode[Color.OrangeRed],
                     });
+                }
+                else if (carDerailPossible)
+                {
+                    AddLabel(new ListLabel
+                    {
+                        FirstCol = Viewer.Catalog.GetString("DerailCoeff"),
+                        LastCol = $"{Viewer.Catalog.GetString("Warning")} {carIDerailCoeff}" + ColorCode[Color.Yellow],
+                    });
+                }
+                else
+                {
+                    // delay to hide the derailcoeff label if normal
+                    if (derailLabelVisible && clockDerailTime + 3 < Owner.Viewer.Simulator.ClockTime)
+                        derailLabelVisible = false;
+
+                    if (derailLabelVisible)
+                    {
+                        AddLabel(new ListLabel
+                        {
+                            FirstCol = Viewer.Catalog.GetString("DerailCoeff") + ColorCode[Color.White],
+                            LastCol = Viewer.Catalog.GetString("Normal") + ColorCode[Color.White]
+                        });
+                    }
                 }
             }
 
