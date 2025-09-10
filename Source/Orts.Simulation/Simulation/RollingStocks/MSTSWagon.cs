@@ -1877,6 +1877,7 @@ namespace Orts.Simulation.RollingStocks
             outf.Write(DerailClimbDistanceM);
             outf.Write(DerailPossible);
             outf.Write(DerailExpected);
+            outf.Write(Derailed);
             outf.Write(DerailElapsedTimeS);
             for (int index = 0; index < 4; index++)
             {
@@ -1940,6 +1941,7 @@ namespace Orts.Simulation.RollingStocks
             DerailClimbDistanceM = inf.ReadSingle();
             DerailPossible = inf.ReadBoolean();
             DerailExpected = inf.ReadBoolean();
+            Derailed = inf.ReadBoolean();
             DerailElapsedTimeS = inf.ReadSingle();
             for (int index = 0; index < 4; index++)
             {

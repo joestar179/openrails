@@ -209,6 +209,8 @@ namespace Orts.Simulation.RollingStocks
         public bool DerailPossible = false;
         public bool DerailExpected = false;
         public float DerailElapsedTimeS;
+        public bool Derailed = false; // true once the car has left the track
+        public Vector3 DerailedVelocityMpS; // world-space velocity when derailed
 
         public float MaxHandbrakeForceN;
         public float MaxBrakeForceN = 89e3f;
@@ -832,6 +834,11 @@ namespace Orts.Simulation.RollingStocks
         // called when it's time to update the MotiveForce and FrictionForce
         public virtual void Update(float elapsedClockSeconds)
         {
+            if (Derailed)
+            {
+                UpdateDerailedPhysics(elapsedClockSeconds);
+                return;
+            }
 
             // Initialize RigidWheelBaseM in first loop if not defined in ENG file, then ignore
             if (RigidWheelBaseM == 0 && !RigidWheelBaseInitialised)   // Calculate default values if no value in Wag File
@@ -1696,8 +1703,19 @@ namespace Orts.Simulation.RollingStocks
                     // If derail climb time exceeded, then derail happens
                     if (DerailPossible && DerailElapsedTimeS > derailTimeS)
                     {
-                        DerailExpected = true;
-                        Simulator.Confirmer.Message(ConfirmLevel.Warning, Simulator.Catalog.GetStringFmt("Car {0} has derailed on the curve.", CarID));
+                        if (!DerailExpected)
+                        {
+                            DerailExpected = true;
+                            Simulator.Confirmer.Message(ConfirmLevel.Warning, Simulator.Catalog.GetStringFmt("Car {0} has derailed on the curve.", CarID));
+
+                            // Pick a derailment event based on speed for the sound system
+                            float speedMph = MpS.ToMpH(AbsSpeedMpS);
+                            Event derailEvent = speedMph < 10f ? Event.Derail1 :
+                                speedMph < 30f ? Event.Derail2 : Event.Derail3;
+                            SignalEvent(derailEvent);
+
+                            TriggerDerailment();
+                        }
                       //  Trace.TraceInformation("Car Derail - CarID: {0}, Coupler: {1}, CouplerSmoothed {2}, Lateral {3}, Vertical {4}, Angle {5} Nadal {6} Coeff {7}", CarID, CouplerForceU, CouplerForceUSmoothed.SmoothedValue, TotalWagonLateralDerailForceN, TotalWagonVerticalDerailForceN, WagonCouplerAngleDerailRad, NadalDerailmentCoefficient, DerailmentCoefficient);
                      //   Trace.TraceInformation("Car Ahead Derail - CarID: {0}, Coupler: {1}, CouplerSmoothed {2}, Lateral {3}, Vertical {4}, Angle {5}", CarAhead.CarID, CarAhead.CouplerForceU, CarAhead.CouplerForceUSmoothed.SmoothedValue, CarAhead.TotalWagonLateralDerailForceN, CarAhead.TotalWagonVerticalDerailForceN, CarAhead.WagonCouplerAngleDerailRad);
                     }
@@ -1745,6 +1763,30 @@ namespace Orts.Simulation.RollingStocks
                 }
             }
 
+        }
+
+        void TriggerDerailment()
+        {
+            if (Derailed)
+                return;
+            Derailed = true;
+            // capture current forward velocity as world vector
+            var forward = new Vector3(WorldPosition.XNAMatrix.M31, WorldPosition.XNAMatrix.M32, WorldPosition.XNAMatrix.M33);
+            DerailedVelocityMpS = forward * SpeedMpS;
+        }
+
+        void UpdateDerailedPhysics(float elapsedClockSeconds)
+        {
+            // apply gravity to world-space velocity
+            DerailedVelocityMpS += new Vector3(0, -GravitationalAccelerationMpS2 * elapsedClockSeconds, 0);
+            // update world position
+            WorldPosition.XNAMatrix.Translation += DerailedVelocityMpS * elapsedClockSeconds;
+            // update scalar speed along forward vector for coupler logic
+            var forward = new Vector3(WorldPosition.XNAMatrix.M31, WorldPosition.XNAMatrix.M32, WorldPosition.XNAMatrix.M33);
+            SpeedMpS = Vector3.Dot(DerailedVelocityMpS, forward);
+            AbsSpeedMpS = Math.Abs(SpeedMpS);
+            GravityForceN = MassKG * -GravitationalAccelerationMpS2;
+            CurrentElevationPercent = 0f;
         }
 
         #endregion
@@ -2799,6 +2841,11 @@ namespace Orts.Simulation.RollingStocks
 
         public void ComputePosition(Traveller traveler, bool backToFront, float elapsedTimeS, float distance, float speed)
         {
+            if (Derailed)
+            {
+                traveler.Move(CarLengthM);
+                return;
+            }
             for (var j = 0; j < Parts.Count; j++)
                 Parts[j].InitLineFit();
             var tileX = traveler.TileX;
