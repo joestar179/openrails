@@ -208,6 +208,7 @@
             this.label9 = new System.Windows.Forms.Label();
             this.AdhesionFactorChangeValueLabel = new System.Windows.Forms.Label();
             this.AdhesionFactorValueLabel = new System.Windows.Forms.Label();
+            this.checkVisualDerailment = new System.Windows.Forms.CheckBox();
             this.checkShapeWarnings = new System.Windows.Forms.CheckBox();
             this.AdhesionLevelValue = new System.Windows.Forms.Label();
             this.AdhesionLevelLabel = new System.Windows.Forms.Label();
@@ -2409,6 +2410,7 @@
             this.tabPageExperimental.Controls.Add(this.label9);
             this.tabPageExperimental.Controls.Add(this.AdhesionFactorChangeValueLabel);
             this.tabPageExperimental.Controls.Add(this.AdhesionFactorValueLabel);
+            this.tabPageExperimental.Controls.Add(this.checkVisualDerailment);
             this.tabPageExperimental.Controls.Add(this.checkShapeWarnings);
             this.tabPageExperimental.Controls.Add(this.AdhesionLevelValue);
             this.tabPageExperimental.Controls.Add(this.AdhesionLevelLabel);
@@ -2617,9 +2619,19 @@
             this.AdhesionFactorValueLabel.Size = new System.Drawing.Size(292, 13);
             this.AdhesionFactorValueLabel.TabIndex = 27;
             this.AdhesionFactorValueLabel.TextAlign = System.Drawing.ContentAlignment.TopRight;
-            // 
+            //
+            // checkVisualDerailment
+            //
+            this.checkVisualDerailment.AutoSize = true;
+            this.checkVisualDerailment.Location = new System.Drawing.Point(6, 212);
+            this.checkVisualDerailment.Name = "checkVisualDerailment";
+            this.checkVisualDerailment.Size = new System.Drawing.Size(112, 17);
+            this.checkVisualDerailment.TabIndex = 37;
+            this.checkVisualDerailment.Text = "Visual derailment";
+            this.checkVisualDerailment.UseVisualStyleBackColor = true;
+            //
             // checkShapeWarnings
-            // 
+            //
             this.checkShapeWarnings.AutoSize = true;
             this.checkShapeWarnings.Location = new System.Drawing.Point(6, 189);
             this.checkShapeWarnings.Name = "checkShapeWarnings";
@@ -3030,6 +3042,7 @@
         private System.Windows.Forms.Button buttonContentAdd;
         private System.Windows.Forms.Label labelContent;
         private System.Windows.Forms.CheckBox checkShapeWarnings;
+        private System.Windows.Forms.CheckBox checkVisualDerailment;
         private System.Windows.Forms.Label labelDayAmbientLight;
         private System.Windows.Forms.CheckBox checkEnableTCSScripts;
         private System.Windows.Forms.CheckBox checkCorrectQuestionableBrakingParams;

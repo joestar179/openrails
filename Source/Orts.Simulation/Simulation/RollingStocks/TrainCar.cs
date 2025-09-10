@@ -1271,6 +1271,16 @@ namespace Orts.Simulation.RollingStocks
 
         public void UpdateTrainDerailmentRisk(float elapsedClockSeconds)
         {
+            if (!Simulator.Settings.VisualDerailment)
+            {
+                TotalWagonLateralDerailForceN = 0;
+                TotalWagonVerticalDerailForceN = 0;
+                DerailmentCoefficient = 0;
+                DerailExpected = false;
+                DerailPossible = false;
+                DerailElapsedTimeS = 0;
+                return;
+            }
             // Calculate coupler angle when travelling around curve
             // To achieve an accurate coupler angle calculation the following length need to be calculated. These values can be included in the ENG/WAG file for greatest accuracy, or alternatively OR will
             // calculate some default values based upon the length of the car specified in the "Size" statement. This value may however be inaccurate, and sets the "visual" distance for placement of the 

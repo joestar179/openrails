@@ -329,6 +329,8 @@ namespace ORTS.Settings
         public bool CorrectQuestionableBrakingParams { get; set; }
         [Default(false)]
         public bool OpenDoorsInAITrains { get; set; }
+        [Default(false)]
+        public bool VisualDerailment { get; set; }
         [Default(0)]
         public int ActRandomizationLevel { get; set; }
         [Default(0)]

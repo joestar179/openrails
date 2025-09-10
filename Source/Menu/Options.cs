@@ -337,6 +337,7 @@ namespace ORTS
             trackAdhesionFactorChange.Value = Settings.AdhesionFactorChange;
             trackAdhesionFactor_ValueChanged(null, null);
             checkShapeWarnings.Checked = !Settings.SuppressShapeWarnings;   // Inverted as "Show warnings" is better UI than "Suppress warnings"
+            checkVisualDerailment.Checked = Settings.VisualDerailment;
             checkCorrectQuestionableBrakingParams.Checked = Settings.CorrectQuestionableBrakingParams;
             numericActRandomizationLevel.Value = Settings.ActRandomizationLevel;
             numericActWeatherRandomizationLevel.Value = Settings.ActWeatherRandomizationLevel;
@@ -526,6 +527,7 @@ namespace ORTS
             Settings.AdhesionFactor = (int)trackAdhesionFactor.Value;
             Settings.AdhesionFactorChange = (int)trackAdhesionFactorChange.Value;
             Settings.SuppressShapeWarnings = !checkShapeWarnings.Checked;
+            Settings.VisualDerailment = checkVisualDerailment.Checked;
             Settings.CorrectQuestionableBrakingParams = checkCorrectQuestionableBrakingParams.Checked;
             Settings.ActRandomizationLevel = (int)numericActRandomizationLevel.Value;
             Settings.ActWeatherRandomizationLevel = (int)numericActWeatherRandomizationLevel.Value;
