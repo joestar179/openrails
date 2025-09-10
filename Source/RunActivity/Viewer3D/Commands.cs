@@ -544,7 +544,7 @@ namespace Orts.Viewer3D
 
         public override void Redo()
         {
-            if (Receiver.Camera is RotatingCamera)
+            if (!Receiver.Camera.TranslationLocked && Receiver.Camera is RotatingCamera)
             {
                 var c = Receiver.Camera as RotatingCamera;
                 c.RotationXTargetRadians = RotationXRadians;
@@ -573,7 +573,7 @@ namespace Orts.Viewer3D
 
         public override void Redo()
         {
-            if (Receiver.Camera is RotatingCamera)
+            if (!Receiver.Camera.TranslationLocked && Receiver.Camera is RotatingCamera)
             {
                 var c = Receiver.Camera as RotatingCamera;
                 c.RotationYTargetRadians = RotationYRadians;
@@ -607,7 +607,7 @@ namespace Orts.Viewer3D
 
         public override void Redo()
         {
-            if (Receiver.Camera is RotatingCamera)
+            if (!Receiver.Camera.TranslationLocked && Receiver.Camera is RotatingCamera)
             {
                 var c = Receiver.Camera as RotatingCamera;
                 c.EndTime = EndTime;
@@ -637,7 +637,7 @@ namespace Orts.Viewer3D
 
         public override void Redo()
         {
-            if (Receiver.Camera is RotatingCamera)
+            if (!Receiver.Camera.TranslationLocked && Receiver.Camera is RotatingCamera)
             {
                 var c = Receiver.Camera as RotatingCamera;
                 c.XTargetRadians = XRadians;
@@ -666,7 +666,7 @@ namespace Orts.Viewer3D
 
         public override void Redo()
         {
-            if (Receiver.Camera is RotatingCamera)
+            if (!Receiver.Camera.TranslationLocked && Receiver.Camera is RotatingCamera)
             {
                 var c = Receiver.Camera as RotatingCamera;
                 c.YTargetRadians = YRadians;
@@ -695,7 +695,7 @@ namespace Orts.Viewer3D
 
         public override void Redo()
         {
-            if (Receiver.Camera is RotatingCamera)
+            if (!Receiver.Camera.TranslationLocked && Receiver.Camera is RotatingCamera)
             {
                 var c = Receiver.Camera as RotatingCamera;
                 c.ZTargetRadians = ZRadians;
@@ -723,7 +723,7 @@ namespace Orts.Viewer3D
 
 		public override void Redo()
 		{
-			if (Receiver.Camera is ThreeDimCabCamera)
+                        if (!Receiver.Camera.TranslationLocked && Receiver.Camera is ThreeDimCabCamera)
 			{
 				var c = Receiver.Camera as ThreeDimCabCamera;
 				c.MoveCameraXYZ(X, Y, Z);
@@ -752,7 +752,7 @@ namespace Orts.Viewer3D
 
         public override void Redo()
         {
-            if (Receiver.Camera is TrackingCamera)
+            if (!Receiver.Camera.TranslationLocked && Receiver.Camera is TrackingCamera)
             {
                 var c = Receiver.Camera as TrackingCamera;
                 c.PositionXTargetRadians = PositionXRadians;
@@ -781,7 +781,7 @@ namespace Orts.Viewer3D
 
         public override void Redo()
         {
-            if (Receiver.Camera is TrackingCamera)
+            if (!Receiver.Camera.TranslationLocked && Receiver.Camera is TrackingCamera)
             {
                 var c = Receiver.Camera as TrackingCamera;
                 c.PositionYTargetRadians = PositionYRadians;
@@ -810,7 +810,7 @@ namespace Orts.Viewer3D
 
         public override void Redo()
         {
-            if (Receiver.Camera is TrackingCamera)
+            if (!Receiver.Camera.TranslationLocked && Receiver.Camera is TrackingCamera)
             {
                 var c = Receiver.Camera as TrackingCamera;
                 c.PositionDistanceTargetMetres = PositionDistanceMetres;

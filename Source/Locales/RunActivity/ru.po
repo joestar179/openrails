@@ -13,6 +13,10 @@ msgstr ""
 "n%10<=4 && (n%100<12 || n%100>14) ? 1 : 2);\n"
 "X-Generator: Poedit 3.2.2\n"
 
+#: ../../RunActivity/Viewer3D/Viewer.cs:227
+msgid "DerailRestart"
+msgstr "Train has derailed, restart simulation"
+
 #: ../../RunActivity/Viewer3D/Cameras.cs:601
 msgid "Free"
 msgstr "Свободная"

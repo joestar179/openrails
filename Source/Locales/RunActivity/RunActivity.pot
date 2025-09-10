@@ -3090,6 +3090,10 @@ msgstr ""
 msgid "Derailed"
 msgstr ""
 
+#: ../../RunActivity/Viewer3D/Viewer.cs:227
+msgid "DerailRestart"
+msgstr ""
+
 #: ../../RunActivity/Viewer3D/Popups/TrainListWindow.cs:33
 msgid "Train List"
 msgstr ""

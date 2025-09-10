@@ -111,6 +111,10 @@ namespace Orts.Viewer3D
         private OutOfFocusWindow OutOfFocusWindow; // to show colored rectangle around the main window when not in focus
         public EditorShapes EditorShapes { get; set; }
 
+        // Derailed session handling
+        public bool DerailmentSequenceActive { get; private set; }
+        double derailmentMessageTime;
+
         // Route Information
         public TileManager Tiles { get; private set; }
         public TileManager LoTiles { get; private set; }
@@ -198,6 +202,34 @@ namespace Orts.Viewer3D
 
         public bool SaveScreenshot { get; set; }
         public bool SaveActivityThumbnail { get; private set; }
+
+        /// <summary>
+        /// Initiates camera and timer handling when a car derails.
+        /// </summary>
+        public void StartDerailmentSequence()
+        {
+            if (DerailmentSequenceActive)
+                return;
+
+            FrontCamera.Activate();
+            Camera.TranslationLocked = true;
+            DerailmentSequenceActive = true;
+            derailmentMessageTime = Simulator.ClockTime + 10;
+        }
+
+        void UpdateDerailment()
+        {
+            if (!DerailmentSequenceActive)
+                return;
+
+            if (Simulator.ClockTime >= derailmentMessageTime)
+            {
+                Simulator.Confirmer.Message(ConfirmLevel.Error, Catalog.GetString("DerailRestart"));
+                if (QuitWindow != null)
+                    QuitWindow.Visible = Simulator.Paused = true;
+                DerailmentSequenceActive = false;
+            }
+        }
         public string SaveActivityFileStem { get; private set; }
 
         public Vector3 NearPoint { get; private set; }
@@ -827,6 +859,7 @@ namespace Orts.Viewer3D
             }
 
             World.Update(elapsedTime);
+            UpdateDerailment();
 
             if (frame.IsScreenChanged)
                 Camera.ScreenChanged();
