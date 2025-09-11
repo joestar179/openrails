@@ -32,6 +32,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Orts.Formats.Msts;
 using Orts.MultiPlayer;
 using Orts.Simulation.Physics;
