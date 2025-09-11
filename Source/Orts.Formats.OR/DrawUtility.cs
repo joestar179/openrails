@@ -258,7 +258,7 @@ namespace Orts.Formats.OR
             return pt;
         }
 #if false
-		        public static PointF FindStraightIntersection(AESegment segArea, AESegment track)
+        public static PointF FindStraightIntersection(AESegment segArea, AESegment track)
         {
             float xD1, yD1, xD2, yD2, xD3, yD3;
             double dot, deg;
@@ -266,7 +266,7 @@ namespace Orts.Formats.OR
             double segmentLen1, segmentLen2;
             float ua, ub, div;
 
-            // calculate differences  
+            // calculate differences
             xD1 = segArea.endPoint.X - segArea.startPoint.X;
             xD2 = track.endPoint.X - track.startPoint.X;
             yD1 = segArea.endPoint.Y - segArea.startPoint.Y;
@@ -274,35 +274,20 @@ namespace Orts.Formats.OR
             xD3 = segArea.startPoint.X - track.startPoint.X;
             yD3 = segArea.startPoint.Y - track.startPoint.Y;
 
-            // calculate the lengths of the two lines  
+            // calculate the lengths of the two lines
             len1 = Math.Sqrt(xD1 * xD1 + yD1 * yD1);
             len2 = Math.Sqrt(xD2 * xD2 + yD2 * yD2);
 
-            // calculate angle between the two lines.  
-            dot = (xD1 * xD2 + yD1 * yD2); // dot product  
+            // calculate angle between the two lines.
+            dot = (xD1 * xD2 + yD1 * yD2); // dot product
             deg = dot / (len1 * len2);
 
-            // if abs(angle)==1 then the lines are parallell,  
-            // so no intersection is possible  
-            if (Math.Abs(deg) == 1) 
-=======
-            // find intersection Pt between two lines    
-            PointF pt = new PointF(0, 0);
-            div = yD2 * xD1 - xD2 * yD1;
-            if (div == 0)
->>>>>>> .r37
+            // if abs(angle)==1 then the lines are parallel,
+            // so no intersection is possible
+            if (Math.Abs(deg) == 1)
                 return PointF.Empty;
-<<<<<<< .mine
-=======
-            ua = (xD2 * yD3 - yD2 * xD3) / div;
-            ub = (xD1 * yD3 - yD1 * xD3) / div;
-            pt.Y = segArea.startPoint.Y + ub * yD1;
-            pt.X = segArea.startPoint.X + ua * xD1;
-            pt.Y = segArea.startPoint.Y + ua * yD1;
->>>>>>> .r37
 
-<<<<<<< .mine
-            // find intersection Pt between two lines    
+            // find intersection Pt between two lines
             PointF pt = new PointF(0, 0);
             div = yD2 * xD1 - xD2 * yD1;
             if (div == 0)
@@ -312,74 +297,40 @@ namespace Orts.Formats.OR
             pt.Y = segArea.startPoint.Y + ub * yD1;
             pt.X = segArea.startPoint.X + ua * xD1;
             pt.Y = segArea.startPoint.Y + ua * yD1;
-=======
-            // calculate the combined length of the two segments  
-            // between Pt-p1 and Pt-p2  
-            xD1 = pt.X - segArea.startPoint.X;
-            xD2 = pt.X - segArea.endPoint.X;
-            yD1 = pt.Y - segArea.startPoint.Y;
-            yD2 = pt.Y - segArea.endPoint.Y;
-            segmentLen1 = Math.Sqrt(xD1 * xD1 + yD1 * yD1) + Math.Sqrt(xD2 * xD2 + yD2 * yD2);
->>>>>>> .r37
 
-<<<<<<< .mine
-            // calculate the combined length of the two segments  
-            // between Pt-p1 and Pt-p2  
+            // calculate the combined length of the two segments
+            // between Pt-p1 and Pt-p2
             xD1 = pt.X - segArea.startPoint.X;
             xD2 = pt.X - segArea.endPoint.X;
             yD1 = pt.Y - segArea.startPoint.Y;
             yD2 = pt.Y - segArea.endPoint.Y;
             segmentLen1 = Math.Sqrt(xD1 * xD1 + yD1 * yD1) + Math.Sqrt(xD2 * xD2 + yD2 * yD2);
 
-            // calculate the combined length of the two segments  
-            // between Pt-p3 and Pt-p4  
+            // calculate the combined length of the two segments
+            // between Pt-p3 and Pt-p4
             xD1 = pt.X - track.startPoint.X;
             xD2 = pt.X - track.endPoint.X;
             yD1 = pt.Y - track.startPoint.Y;
             yD2 = pt.Y - track.endPoint.Y;
             segmentLen2 = Math.Sqrt(xD1 * xD1 + yD1 * yD1) + Math.Sqrt(xD2 * xD2 + yD2 * yD2);
 
-            // if the lengths of both sets of segments are the same as  
-            // the lenghts of the two lines the point is actually   
-            // on the line segment.  
+            // if the lengths of both sets of segments are the same as
+            // the lengths of the two lines the point is actually
+            // on the line segment.
 
-            // if the point isn't on the line, return null  
+            // if the point isn't on the line, return null
             if (Math.Abs(len1 - segmentLen1) > 0.01 || Math.Abs(len2 - segmentLen2) > 0.01)
                 return PointF.Empty;
 
-            // return the valid intersection  
+            // return the valid intersection
             if (pt.IsEmpty)
                 return PointF.Empty;
             if (FindDistancePoints(pt, segArea.startPoint) < 0.1 || FindDistancePoints(pt, segArea.endPoint) < 0.1)
                 return PointF.Empty;
             return pt;
-=======
-            // calculate the combined length of the two segments  
-            // between Pt-p3 and Pt-p4  
-            xD1 = pt.X - track.startPoint.X;
-            xD2 = pt.X - track.endPoint.X;
-            yD1 = pt.Y - track.startPoint.Y;
-            yD2 = pt.Y - track.endPoint.Y;
-            segmentLen2 = Math.Sqrt(xD1 * xD1 + yD1 * yD1) + Math.Sqrt(xD2 * xD2 + yD2 * yD2);
-
-            // if the lengths of both sets of segments are the same as  
-            // the lenghts of the two lines the point is actually   
-            // on the line segment.  
-
-            // if the point isn't on the line, return null  
-            if (Math.Abs(len1 - segmentLen1) > 0.01 || Math.Abs(len2 - segmentLen2) > 0.01)
-                return PointF.Empty;
-
-            // return the valid intersection  
-            if (pt.IsEmpty)
-                return PointF.Empty;
-            if (FindDistancePoints(pt, segArea.startPoint) < 0.1 || FindDistancePoints(pt, segArea.endPoint) < 0.1)
-                return PointF.Empty;
-            return pt;
->>>>>>> .r37
         }
-  
-	#endif
+
+#endif
         public static PointF FindCurveIntersection(AESegment segArea, AESegment track)
         {
             PointF pointA = track.startPoint;
