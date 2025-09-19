@@ -159,8 +159,6 @@ namespace Orts.Formats.OR
             PointF intersection;
             if (track.isCurved)
             {
-                if ((int)(track.startPoint.X) == 45892)
-                    intersection = PointF.Empty;
                 intersection = DrawUtility.FindCurveIntersection(segArea, track);
             }
             else
