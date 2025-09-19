@@ -82,6 +82,7 @@ namespace Orts.Simulation.Timetables
         public bool Stable_CallOn = false;                         // Used when in timetable mode to show stabled train is allowed to call on
         public bool DriverOnlyOperation = false;                   // Used when in timetable mode to indicate driver only operation
         public bool ForceReversal = false;                         // Used when in timetable mode to force reversal at diverging point ignoring signals
+        public List<StationStop> AllStationStops = null;           // Complete list of station stops for save/load
 
         public enum FormCommand // Enum to indicate type of form sequence
         {
@@ -539,6 +540,19 @@ namespace Orts.Simulation.Timetables
 
             clockmult = inf.ReadInt32(); //joe179star
 
+            if (inf.BaseStream.Position < inf.BaseStream.Length)
+            {
+                int totalAllStops = inf.ReadInt32();
+                if (totalAllStops >= 0)
+                {
+                    AllStationStops = new List<StationStop>();
+                    for (int iAll = 0; iAll < totalAllStops; iAll++)
+                    {
+                        AllStationStops.Add(new StationStop(inf, signalRef));
+                    }
+                }
+            }
+
             // Reset actions if train is active
             bool activeTrain = true;
 
@@ -850,6 +864,19 @@ namespace Orts.Simulation.Timetables
             outf.Write(ForceReversal);
             outf.Write(Briefing);
             outf.Write(clockmult); //joe179star
+
+            if (AllStationStops == null)
+            {
+                outf.Write(-1);
+            }
+            else
+            {
+                outf.Write(AllStationStops.Count);
+                foreach (StationStop stop in AllStationStops)
+                {
+                    stop.Save(outf);
+                }
+            }
         }
 
         //================================================================================================//
