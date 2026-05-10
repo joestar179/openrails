@@ -48,6 +48,8 @@ namespace Orts.Viewer3D.Popups
         Dictionary<int, string> DbfEvalActArrive = new Dictionary<int, string>();//Debrief eval
         Dictionary<int, string> DbfEvalActDepart = new Dictionary<int, string>();//Debrief eval
 
+        readonly Dictionary<Train, List<Train.StationStop>> FullTimetableStops = new Dictionary<Train, List<Train.StationStop>>();
+
         Dictionary<string, double> DbfEvalValues = new Dictionary<string, double>();//Debrief eval
 
         ControlLayout scrollbox;
@@ -564,6 +566,57 @@ namespace Orts.Viewer3D.Popups
                     var textFlow = new TextFlow(scrollbox.RemainingWidth, briefing);
                     scrollbox.Add(textFlow);
                 }));
+
+                Tabs.Add(new TabData(Tab.TimetableTimetable, Viewer.Catalog.GetString("Timetable"), (cl) =>
+                {
+                    var colWidth = (cl.RemainingWidth - cl.TextHeight) / 7;
+                    {
+                        var line = cl.AddLayoutHorizontalLineOfText();
+                        line.Add(new Label(colWidth * 3, line.RemainingHeight, Viewer.Catalog.GetString("Station")));
+                        line.Add(new Label(colWidth, line.RemainingHeight, Viewer.Catalog.GetString("Arrive"), LabelAlignment.Center));
+                        line.Add(new Label(colWidth, line.RemainingHeight, Viewer.Catalog.GetString("Actual"), LabelAlignment.Center));
+                        line.Add(new Label(colWidth, line.RemainingHeight, Viewer.Catalog.GetString("Depart"), LabelAlignment.Center));
+                        line.Add(new Label(colWidth, line.RemainingHeight, Viewer.Catalog.GetString("Actual"), LabelAlignment.Center));
+                    }
+                    cl.AddHorizontalSeparator();
+                    var scrollbox = cl.AddLayoutScrollboxVertical(cl.RemainingWidth);
+                    var tTTrain = owner.Viewer.SelectedTrain as Orts.Simulation.Timetables.TTTrain;
+                    if (tTTrain != null)
+                    {
+                        var stops = GetFullTimetableStops(tTTrain);
+
+                        foreach (var stop in stops)
+                        {
+                            Label arrive, depart;
+                            var line = scrollbox.AddLayoutHorizontalLineOfText();
+                            line.Add(new Label(colWidth * 3, line.RemainingHeight, stop.PlatformItem?.Name ?? ""));
+
+                            // Scheduled Arrive/Depart must be the booked timetable values only.
+                            // Use the DateTime fields built from the timetable, not ActualDepart, because
+                            // StationStop.CalculateDepartTime() pre-calculates ActualDepart on arrival.
+                            line.Add(new Label(colWidth, line.RemainingHeight, stop.arrivalDT.ToString("HH:mm:ss"), LabelAlignment.Center));
+
+                            DateTime? actArr = stop.ActualArrival >= 0 ? TimetableSecondsToDateTime(stop.ActualArrival) : (DateTime?)null;
+                            line.Add(arrive = new Label(colWidth, line.RemainingHeight,
+                                actArr.HasValue ? actArr.Value.ToString("HH:mm:ss") : stop.Passed ? Viewer.Catalog.GetString("(missed)") : "",
+                                LabelAlignment.Center));
+
+                            line.Add(new Label(colWidth, line.RemainingHeight, stop.departureDT.ToString("HH:mm:ss"), LabelAlignment.Center));
+
+                            // ActualDepart is only a real physical departure after the stop has left the
+                            // active StationStops list. Before that, the simulation may already have
+                            // pre-filled ActualDepart with the expected departure time.
+                            bool stopStillActive = tTTrain.StationStops != null && tTTrain.StationStops.Any(activeStop => SameTimetableStop(activeStop, stop));
+                            DateTime? actDep = !stopStillActive && stop.ActualDepart >= 0 ? TimetableSecondsToDateTime(stop.ActualDepart) : (DateTime?)null;
+                            line.Add(depart = new Label(colWidth, line.RemainingHeight,
+                                actDep.HasValue ? actDep.Value.ToString("HH:mm:ss") : stop.Passed && !stopStillActive ? Viewer.Catalog.GetString("(missed)") : "",
+                                LabelAlignment.Center));
+
+                            arrive.Color = NextStationWindow.GetArrivalColor(stop.arrivalDT, actArr);
+                            depart.Color = GetTimetableDepartColor(stop.departureDT, actDep);
+                        }
+                    }
+                }));
             }
             Tabs.Add(new TabData(Tab.LocomotiveProcedures, Viewer.Catalog.GetString("Procedures"), (cl) =>
             {
@@ -578,6 +631,77 @@ namespace Orts.Viewer3D.Popups
             }));
         }
 
+
+        private static DateTime TimetableSecondsToDateTime(int seconds)
+        {
+            var daySeconds = 24 * 3600;
+            var normalizedSeconds = seconds % daySeconds;
+            if (normalizedSeconds < 0)
+                normalizedSeconds += daySeconds;
+
+            return new DateTime().AddSeconds(normalizedSeconds);
+        }
+
+        private static string FormatTimetableSeconds(int seconds)
+        {
+            return TimetableSecondsToDateTime(seconds).ToString("HH:mm:ss");
+        }
+
+        private static Color GetTimetableDepartColor(DateTime expected, DateTime? actual)
+        {
+            if (!actual.HasValue)
+                return Color.White;
+
+            return actual.Value <= expected ? Color.LightGreen : Color.LightSalmon;
+        }
+
+        private List<Train.StationStop> GetFullTimetableStops(Orts.Simulation.Timetables.TTTrain tTTrain)
+        {
+            List<Train.StationStop> stops;
+            if (!FullTimetableStops.TryGetValue(tTTrain, out stops))
+            {
+                stops = new List<Train.StationStop>();
+                FullTimetableStops[tTTrain] = stops;
+            }
+
+            AddTimetableStopIfMissing(stops, tTTrain.PreviousStop, true);
+
+            if (tTTrain.StationStops != null)
+            {
+                foreach (var stop in tTTrain.StationStops)
+                    AddTimetableStopIfMissing(stops, stop, false);
+            }
+
+            return stops.ToList();
+        }
+
+        private static void AddTimetableStopIfMissing(List<Train.StationStop> stops, Train.StationStop stop, bool insertAtFront)
+        {
+            if (stop == null)
+                return;
+
+            if (stops.Any(existing => SameTimetableStop(existing, stop)))
+                return;
+
+            if (insertAtFront)
+                stops.Insert(0, stop);
+            else
+                stops.Add(stop);
+        }
+
+        private static bool SameTimetableStop(Train.StationStop a, Train.StationStop b)
+        {
+            if (a == null || b == null)
+                return false;
+
+            return a.PlatformReference == b.PlatformReference
+                && a.ArrivalTime == b.ArrivalTime
+                && a.DepartTime == b.DepartTime
+                && a.arrivalDT == b.arrivalDT
+                && a.departureDT == b.departureDT
+                && string.Equals(a.PlatformItem?.Name, b.PlatformItem?.Name, StringComparison.OrdinalIgnoreCase);
+        }
+
         private void ReportEvaluation(WindowManager owner, ControlLayout cl, TrainCar locomotive, int nmissedstation, string labeltext, int noverspeedcoupling, int dbfstationstopsremaining, Train playerTrain, int colWidth, Label indicator, bool lcurvespeeddependent, bool lbreakcouplers, int ndbfEvalTaskAccomplished)
         {
             line = scrollbox.AddLayoutHorizontalLineOfText();
@@ -586,8 +710,8 @@ namespace Orts.Viewer3D.Popups
 
             //If Autopilot control then update recorded time
             //           if (!ldbfevalupdateautopilottime && owner.Viewer.PlayerLocomotive.Train.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING)
-           if (!ldbfevalupdateautopilottime &&
-           (owner.Viewer.PlayerLocomotive.Train.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING || owner.Viewer.PlayerLocomotive.Train.Autopilot)) //joe179star autopilot
+            if (!ldbfevalupdateautopilottime &&
+            (owner.Viewer.PlayerLocomotive.Train.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING || owner.Viewer.PlayerLocomotive.Train.Autopilot)) //joe179star autopilot
             {
                 Viewer.DbfEvalAutoPilotTimeS = Viewer.DbfEvalAutoPilotTimeS + (owner.Viewer.Simulator.ClockTime - Viewer.DbfEvalIniAutoPilotTimeS);
                 ldbfevalupdateautopilottime = true;
@@ -1065,11 +1189,11 @@ namespace Orts.Viewer3D.Popups
             string starBlack = " ★ ★ ★ ★ ★";
             string starWhite = " ☆ ☆ ☆ ☆ ☆";
 
-            star = (starBlack.Substring(0, value / 10).ToString() + starWhite.Substring(value / 10, 10 - (value/10)).ToString());
+            star = (starBlack.Substring(0, value / 10).ToString() + starWhite.Substring(value / 10, 10 - (value / 10)).ToString());
             return star;
         }
 
-        private void outmesssagecolorcenter( string text, int colW, Color color, bool lScroll)
+        private void outmesssagecolorcenter(string text, int colW, Color color, bool lScroll)
         {
             if (lScroll)
             {
@@ -1080,9 +1204,9 @@ namespace Orts.Viewer3D.Popups
                 if (!lDebriefEvalFile) wDbfEval.Write(text.PadLeft(40 + text.Length / 2));
 
             line.Add(indicator = new Label(colW, line.RemainingHeight, Viewer.Catalog.GetString(text), LabelAlignment.Center));
-            indicator.Color =color;
-        }    
-        
+            indicator.Color = color;
+        }
+
         private void outmesssagecolor(string text, int colW, Color color, bool bScroll, int nmargin, int nwriteline)
         {
             string[] atext = text.Split('=');
@@ -1091,11 +1215,11 @@ namespace Orts.Viewer3D.Popups
             if (bScroll)
             {
                 line = scrollbox.AddLayoutHorizontalLineOfText();
-                if (!lDebriefEvalFile) wDbfEval.WriteLine(atext.Length > 1 ? atext[0].PadRight(nvalmargin[nmargin]) + " = " + atext[1]: text);
+                if (!lDebriefEvalFile) wDbfEval.WriteLine(atext.Length > 1 ? atext[0].PadRight(nvalmargin[nmargin]) + " = " + atext[1] : text);
             }
             else
             {
-                if (!lDebriefEvalFile) wDbfEval.Write(atext.Length > 1 ? atext[0].PadRight(nvalmargin[nmargin]) + " = " + atext[1]: text.PadRight(nvalmargin[nmargin]));
+                if (!lDebriefEvalFile) wDbfEval.Write(atext.Length > 1 ? atext[0].PadRight(nvalmargin[nmargin]) + " = " + atext[1] : text.PadRight(nvalmargin[nmargin]));
             }
 
             if (!lDebriefEvalFile)
@@ -1142,7 +1266,7 @@ namespace Orts.Viewer3D.Popups
                 line.Add(new Label(colW, line.RemainingHeight, Viewer.Catalog.GetString(text)));
             }
         }
-        
+
         private void consolewltext(string text)
         {
             if (!lDebriefEvalFile) wDbfEval.WriteLine(text + ".");
@@ -1172,7 +1296,7 @@ namespace Orts.Viewer3D.Popups
                     var label = new Label(tabWidth, hbox.RemainingHeight, Tabs[i].TabLabel, LabelAlignment.Center) { Color = ActiveTab == i ? Color.White : Color.Gray, Tag = i };
                     label.Click += label_Click;
                     hbox.Add(label);
-                    
+
                 }
                 vbox.AddHorizontalSeparator();
                 Tabs[ActiveTab].Layout(vbox);
@@ -1195,6 +1319,7 @@ namespace Orts.Viewer3D.Popups
             ActivityWorkOrders,
             ActivityEvaluation,
             TimetableBriefing,
+            TimetableTimetable,
             LocomotiveProcedures,
         }
 
@@ -1212,10 +1337,10 @@ namespace Orts.Viewer3D.Popups
             }
         }
 
-        
+
         ActivityTask LastActivityTask;
         bool StoppedAt;
-        
+
         public override void PrepareFrame(ElapsedTime elapsedTime, bool updateFull)
         {
             // Uncomment this statement to reduce framerate during play for testing
@@ -1223,7 +1348,18 @@ namespace Orts.Viewer3D.Popups
 
             base.PrepareFrame(elapsedTime, updateFull);
 
-            if (updateFull && (Tabs[ActiveTab].Tab == Tab.ActivityTimetable | Tabs[ActiveTab].Tab == Tab.ActivityEvaluation) && Owner.Viewer.Simulator.ActivityRun != null)
+            if (updateFull && Owner.Viewer.Simulator.TimetableMode)
+            {
+                var tTTrain = Owner.Viewer.SelectedTrain as Orts.Simulation.Timetables.TTTrain;
+                if (tTTrain != null)
+                    GetFullTimetableStops(tTTrain);
+            }
+
+            if (updateFull && Tabs[ActiveTab].Tab == Tab.TimetableTimetable)
+            {
+                Layout();
+            }
+            else if (updateFull && (Tabs[ActiveTab].Tab == Tab.ActivityTimetable | Tabs[ActiveTab].Tab == Tab.ActivityEvaluation) && Owner.Viewer.Simulator.ActivityRun != null)
             {
                 if (LastActivityTask != Owner.Viewer.Simulator.ActivityRun.Current || StoppedAt != GetStoppedAt(LastActivityTask))
                 {

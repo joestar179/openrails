@@ -7654,6 +7654,19 @@ namespace Orts.Simulation.Timetables
 
                 // FOLLOW command
                 case "follow":
+                    if (thisCommand.CommandValues == null || thisCommand.CommandValues.Count == 0)
+                    {
+                        if (thisStationStop == null)
+                        {
+                            Trace.TraceWarning("Invalid FOLLOW command for train {0}: missing referenced train name in #note line.", Name);
+                        }
+                        else
+                        {
+                            Trace.TraceWarning("Invalid FOLLOW command for train {0} at station {1}: missing referenced train name.",
+                                Name, thisStationStop.PlatformItem.Name);
+                        }
+                        break;
+                    }
                     foreach (string reqReferenceTrain in thisCommand.CommandValues)
                     {
                         WaitInfo newWaitItem = new WaitInfo();
